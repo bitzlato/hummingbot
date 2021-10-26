@@ -16,6 +16,7 @@ import ujson
 
 from hummingbot.core.clock cimport Clock
 
+from hummingbot.connector.exchange.peatio.order_request import OrderRequest
 from hummingbot.connector.exchange.peatio.peatio_api_order_book_data_source import PeatioAPIOrderBookDataSource
 from hummingbot.connector.exchange.peatio.peatio_auth import PeatioAuth
 from hummingbot.connector.exchange.peatio.peatio_user_stream_tracker import PeatioUserStreamTracker
@@ -725,26 +726,108 @@ cdef class PeatioExchange(ExchangeBase):
         )
         return exchange_order
 
-    async def batch_place_order(self, trading_pair: str, amount: Decimal, is_buy: bool, order_type: OrderType, price: Decimal) -> dict:
-        path_url = "/market/orders"
-        side = "buy" if is_buy else "sell"
-        order_type_str = str(order_type.name).lower()
+    async def batch_place_order(self, orders_data: List[OrderRequest]):
+        path_url = "/market/orders/batch"
 
-        params = {
-            "market": convert_to_exchange_trading_pair(trading_pair),
-            "side": side,
-            "volume": f"{amount:f}",
-            "ord_type": order_type_str,
-            "price": f"{price:f}",
-        }
+        def map_orders_data_to_results(_results: list):
+            _result = {}
+            for od in orders_data:
+                for i, r in enumerate(_results):
+                    if od.amount == Decimal(r['origin_volume']) \
+                       and od.price == Decimal(r['price']) \
+                       and convert_to_exchange_trading_pair(od.trading_pair) == r['market'] \
+                       and ("buy" if od.is_buy else "sell") == r['side'] \
+                       and str(od.order_type.name).lower() == r['ord_type']:
+                        break
+                _results.pop(i)
+                _result[od] = r
+            return _result
 
-        exchange_order = await self._api_request(
-            "post",
-            path_url=path_url,
-            data=params,
-            is_auth_required=True
-        )
-        return exchange_order
+        data = []
+        for order_data in orders_data:
+            func = self.get_data_for_buy_order if order_data.is_buy is True else self.get_data_for_sell_order
+
+            trading_pair, decimal_amount, is_buy, order_type, decimal_price = await func(
+                trading_pair=order_data.trading_pair,
+                amount=order_data.amount,
+                order_type=order_data.order_type,
+                price=order_data.price
+            )
+
+            data.append(
+                {
+                    "market": convert_to_exchange_trading_pair(trading_pair),
+                    "side": "buy" if is_buy else "sell",
+                    "volume": f"{decimal_amount:f}",
+                    "ord_type": str(order_type.name).lower(),
+                    "price": f"{decimal_price:f}",
+                }
+            )
+
+        try:
+            self.logger().info({"orders": data})
+            exchange_orders = await self._api_request(
+                "post",
+                path_url=path_url,
+                data={"orders": data},
+                is_auth_required=True
+            )
+            for req, exchange_order in map_orders_data_to_results(exchange_orders).items():
+                self.c_start_tracking_order(
+                    client_order_id=str(req.client_order_id),
+                    exchange_order_id=str(exchange_order["id"]),
+                    trading_pair=trading_pair,
+                    state=str(exchange_order["state"]),
+                    order_type=order_type,
+                    trade_type=TradeType.BUY if is_buy else TradeType.SELL,
+                    price=Decimal(exchange_order['price']),
+                    amount=Decimal(exchange_order['origin_volume']),
+                )
+                tracked_order = self._in_flight_orders.get(req.client_order_id)
+                if tracked_order is not None:
+                    self.logger().info(
+                        f"Created {order_type} 'buy' if is_buy else 'sell' order {req.client_order_id} ({exchange_order['id']})"
+                        f" for {decimal_amount} {trading_pair} with status {exchange_order['state']}.")
+                if is_buy is True:
+                    self.c_trigger_event(
+                        self.MARKET_BUY_ORDER_CREATED_EVENT_TAG,
+                        BuyOrderCreatedEvent(
+                            timestamp=self._current_timestamp,
+                            type=order_type,
+                            trading_pair=trading_pair,
+                            amount=Decimal(exchange_order['origin_volume']),
+                            price=Decimal(exchange_order['price']),
+                            order_id=str(req.client_order_id),
+                            exchange_order_id=exchange_order["id"]
+                        )
+                    )
+                else:
+                    self.c_trigger_event(
+                        self.MARKET_SELL_ORDER_CREATED_EVENT_TAG,
+                        SellOrderCreatedEvent(
+                            timestamp=self._current_timestamp,
+                            type=order_type,
+                            trading_pair=trading_pair,
+                            amount=Decimal(exchange_order['origin_volume']),
+                            price=Decimal(exchange_order['price']),
+                            order_id=str(req.client_order_id),
+                            exchange_order_id=exchange_order["id"]
+                        )
+                    )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            for order_data in orders_data:
+                self.c_stop_tracking_order(order_id=order_data.client_order_id)
+                self.logger().network(
+                    f"Error submitting {'buy' if is_buy else 'sell'} {order_data.order_type.name.lower()} order to Peatio for "
+                    f"{order_data.amount} {order_data.trading_pair} "
+                    f"{order_data.price}.",
+                    exc_info=True,
+                    app_warning_msg=f"Failed to submit orders to Peatio. Check API key and network connection."
+                )
+            self.c_trigger_event(self.MARKET_ORDER_FAILURE_EVENT_TAG,
+                                 MarketOrderFailureEvent(self._current_timestamp, order_data.client_order_id, order_type))
 
     async def get_data_for_buy_order(self, trading_pair: str, amount: Decimal,
                                      order_type: OrderType, price: Optional[Decimal] = s_decimal_0):
@@ -779,29 +862,7 @@ cdef class PeatioExchange(ExchangeBase):
                           amount: Decimal,
                           order_type: OrderType,
                           price: Optional[Decimal] = s_decimal_0):
-        # cdef:
-        #     TradingRule trading_rule = self._trading_rules[trading_pair]
-        #     object current_price = self.c_get_price(trading_pair, False)
-        #     object quote_amount
-        #     object decimal_amount
-        #     object decimal_price
-        #     str exchange_order_id
-        #     object tracked_order
-        #
-        # if order_type is OrderType.LIMIT:
-        #     decimal_price = self.c_quantize_order_price(trading_pair, price)
-        #     decimal_amount = self.c_quantize_order_amount(
-        #         trading_pair=trading_pair,
-        #         amount=amount,
-        #         price=price if current_price.is_nan() else current_price
-        #     )
-        #
-        #     if decimal_amount < trading_rule.min_order_size:
-        #         raise ValueError(f"Buy order amount {decimal_amount} is lower than the minimum order size "
-        #                          f"{trading_rule.min_order_size}.")
-        # else:
-        #     decimal_amount = amount
-        #     decimal_price = price
+
         trading_pair, decimal_amount, is_buy, order_type, decimal_price = await self.get_data_for_buy_order(
             trading_pair=trading_pair, amount=amount, order_type=order_type, price=price
         )
@@ -839,8 +900,7 @@ cdef class PeatioExchange(ExchangeBase):
             self.logger().network(
                 f"Error submitting buy {order_type_str} order to Peatio for "
                 f"{decimal_amount} {trading_pair} "
-                f"{decimal_price}."
-                f"server_resp: {exchange_order}",
+                f"{decimal_price}.",
                 exc_info=True,
                 app_warning_msg=f"Failed to submit buy order to Peatio. Check API key and network connection."
             )
@@ -859,12 +919,8 @@ cdef class PeatioExchange(ExchangeBase):
         safe_ensure_future(self.execute_buy(client_order_id, trading_pair, amount, order_type, price))
         return client_order_id
 
-    async def execute_sell(self,
-                           client_order_id: str,
-                           trading_pair: str,
-                           amount: Decimal,
-                           order_type: OrderType,
-                           price: Optional[Decimal] = s_decimal_0):
+    async def get_data_for_sell_order(self, trading_pair: str, amount: Decimal,
+                                      order_type: OrderType, price: Optional[Decimal] = s_decimal_0):
         cdef:
             TradingRule trading_rule = self._trading_rules[trading_pair]
             object decimal_amount
@@ -883,7 +939,18 @@ cdef class PeatioExchange(ExchangeBase):
         if decimal_amount < trading_rule.min_order_size:
             raise ValueError(f"Sell order amount {decimal_amount}({amount}) is lower than the minimum order size "
                              f"{trading_rule.min_order_size}.")
+        return trading_pair, decimal_amount, False, order_type, decimal_price
 
+    async def execute_sell(self,
+                           client_order_id: str,
+                           trading_pair: str,
+                           amount: Decimal,
+                           order_type: OrderType,
+                           price: Optional[Decimal] = s_decimal_0):
+
+        trading_pair, decimal_amount, is_buy, order_type, decimal_price = self.get_data_for_sell_order(
+            trading_pair=trading_pair, amount=amount, order_type=order_type, price=price
+        )
         try:
             exchange_order = await self.place_order(trading_pair, decimal_amount, False, order_type, decimal_price)
             self.c_start_tracking_order(

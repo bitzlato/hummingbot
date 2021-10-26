@@ -11,8 +11,11 @@ from typing import (
 )
 from hummingbot.core.clock cimport Clock
 
+from hummingbot.connector.exchange.peatio.order_request import OrderRequest
 from hummingbot.connector.exchange.peatio.peatio_exchange import PeatioExchange
+from hummingbot.connector.exchange.peatio.peatio_utils import get_new_client_order_id
 from hummingbot.core.rate_oracle.rate_oracle import RateOracle, RateOracleSource
+from hummingbot.core.utils.tracking_nonce import get_tracking_nonce
 from hummingbot.logger import HummingbotLogger
 from hummingbot.core.data_type.limit_order cimport LimitOrder
 from hummingbot.core.data_type.limit_order import LimitOrder
@@ -439,18 +442,42 @@ cdef class SelfTradeStrategy(StrategyBase):
 
     def create_trade(self, market_info: MarketTradingPairTuple, price: Decimal, amount: Decimal):
         is_buy = bool(random.randint(0, 1))
-        first_order_id = self.c_place_orders(market_info, is_buy=is_buy, order_price=price, order_amount=amount)
-        self.logger().info(f"place {'buy' if is_buy else 'sell'} order {first_order_id}")
-        if first_order_id is not None:
-            try:
-                second_order_id = self.c_place_orders(market_info, is_buy=not is_buy, order_price=price,
-                                                      order_amount=amount)
-            except Exception as e:
-                self.logger().error(e)
-                second_order_id = None
-            self.logger().info(f"place {'buy' if not is_buy else 'sell'} order {second_order_id}")
-        self._last_trade_timestamp[market_info.trading_pair] = self._current_timestamp
+        if isinstance(market_info.market, PeatioExchange):
+            first_order_id = get_new_client_order_id(TradeType.BUY if is_buy else TradeType.SELL, market_info.trading_pair)
+            second_order_id = get_new_client_order_id(TradeType.BUY if not is_buy else TradeType.SELL, market_info.trading_pair)
+            order_requests = [
+                OrderRequest(
+                    client_order_id=first_order_id,
+                    trading_pair=market_info.trading_pair,
+                    amount=amount,
+                    is_buy=is_buy,
+                    order_type=OrderType.LIMIT,
+                    price=price
+                ),
+                OrderRequest(
+                    client_order_id=second_order_id,
+                    trading_pair=market_info.trading_pair,
+                    amount=amount,
+                    is_buy=not is_buy,
+                    order_type=OrderType.LIMIT,
+                    price=price
+                )
+            ]
+            safe_ensure_future(market_info.market.batch_place_order(orders_data=order_requests))
 
+        else:
+            first_order_id = self.c_place_orders(market_info, is_buy=is_buy, order_price=price, order_amount=amount)
+            self.logger().info(f"place {'buy' if is_buy else 'sell'} order {first_order_id}")
+            if first_order_id is not None:
+                try:
+                    second_order_id = self.c_place_orders(market_info, is_buy=not is_buy, order_price=price,
+                                                          order_amount=amount)
+                except Exception as e:
+                    self.logger().error(e)
+                    second_order_id = None
+                self.logger().info(f"place {'buy' if not is_buy else 'sell'} order {second_order_id}")
+
+        self._last_trade_timestamp[market_info.trading_pair] = self._current_timestamp
         return first_order_id, second_order_id
 
     cdef c_process_market(self, object market_info):
