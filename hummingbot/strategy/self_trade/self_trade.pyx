@@ -446,22 +446,10 @@ cdef class SelfTradeStrategy(StrategyBase):
             first_order_id = get_new_client_order_id(TradeType.BUY if is_buy else TradeType.SELL, market_info.trading_pair)
             second_order_id = get_new_client_order_id(TradeType.BUY if not is_buy else TradeType.SELL, market_info.trading_pair)
             order_requests = [
-                OrderRequest(
-                    client_order_id=first_order_id,
-                    trading_pair=market_info.trading_pair,
-                    amount=amount,
-                    is_buy=is_buy,
-                    order_type=OrderType.LIMIT,
-                    price=price
-                ),
-                OrderRequest(
-                    client_order_id=second_order_id,
-                    trading_pair=market_info.trading_pair,
-                    amount=amount,
-                    is_buy=not is_buy,
-                    order_type=OrderType.LIMIT,
-                    price=price
-                )
+                OrderRequest(client_order_id=first_order_id, trading_pair=market_info.trading_pair, amount=amount,
+                             is_buy=is_buy, order_type=OrderType.LIMIT, price=price),
+                OrderRequest(client_order_id=second_order_id, trading_pair=market_info.trading_pair, amount=amount,
+                             is_buy=not is_buy, order_type=OrderType.LIMIT, price=price)
             ]
             safe_ensure_future(market_info.market.batch_place_order(orders_data=order_requests))
 
@@ -511,12 +499,3 @@ cdef class SelfTradeStrategy(StrategyBase):
                     self.logger().info(f"Не проходит BAND")
             except Exception as e:
                 self.logger().error(e, exc_info=True)
-
-        # if isinstance(maker_market, PeatioExchange):
-        #     pass
-        #     # self.logger().info(f"maker_market: {maker_market}")
-        #     # safe_ensure_future(maker_market.cancel_all(timeout_seconds=0.0, trading_pair=trading_pair, trade_type=None))
-        # else:
-        #     for active_order in self.get_active_orders(market_info):
-        #         if self._current_timestamp >= self._time_to_cancel[active_order.client_order_id]:
-        #             self.c_cancel_order(market_info, active_order.client_order_id)

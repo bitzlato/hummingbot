@@ -211,9 +211,9 @@ class PeatioAPIOrderBookDataSource(OrderBookTrackerDataSource):
                 self.logger().error(e)
                 raise
             except Exception:
-                self.logger().error("Unexpected error with WebSocket connection. Retrying after 30 seconds...",
+                self.logger().error("Unexpected error with WebSocket connection. Retrying...",
                                     exc_info=True)
-                await asyncio.sleep(30.0)
+                await asyncio.sleep(0.1)
 
     async def listen_for_order_book_diffs(self, ev_loop: asyncio.BaseEventLoop, output: asyncio.Queue):
         while True:
@@ -283,9 +283,9 @@ class PeatioAPIOrderBookDataSource(OrderBookTrackerDataSource):
             except asyncio.CancelledError:
                 raise
             except Exception:
-                self.logger().error("Unexpected error with WebSocket connection. Retrying after 30 seconds...",
+                self.logger().error("Unexpected error with WebSocket connection. Retrying...",
                                     exc_info=True)
-                await asyncio.sleep(30.0)
+                await asyncio.sleep(0.1)
 
     async def listen_for_order_book_snapshots(self, ev_loop: asyncio.BaseEventLoop, output: asyncio.Queue):
         while True:

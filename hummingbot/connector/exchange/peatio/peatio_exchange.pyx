@@ -259,7 +259,7 @@ cdef class PeatioExchange(ExchangeBase):
 
         client = await self._http_client()
         if is_auth_required:
-            headers = self._peatio_auth.add_auth_data(headers=headers, is_ws=False)
+            headers = self._peatio_auth.add_auth_data(headers=headers)
 
         try:
             if not data:
@@ -285,7 +285,7 @@ cdef class PeatioExchange(ExchangeBase):
 
         if response.status not in [200, 201]:
             raw_text = await response.text()
-            raise IOError(f"Error fetching data from {url}. HTTP status is {response.status} with response {raw_text}.")
+            raise IOError(f"Error fetching data from {url}. HTTP status is {response.status} with response {raw_text}. Nonce={headers.get('X-Auth-Nonce')}")
 
         try:
             data = await response.json()
@@ -948,7 +948,7 @@ cdef class PeatioExchange(ExchangeBase):
                            order_type: OrderType,
                            price: Optional[Decimal] = s_decimal_0):
 
-        trading_pair, decimal_amount, is_buy, order_type, decimal_price = self.get_data_for_sell_order(
+        trading_pair, decimal_amount, is_buy, order_type, decimal_price = await self.get_data_for_sell_order(
             trading_pair=trading_pair, amount=amount, order_type=order_type, price=price
         )
         try:
@@ -1066,14 +1066,14 @@ cdef class PeatioExchange(ExchangeBase):
             self.logger().info(f"cancel_all_results: {cancel_all_results}")
             results = await safe_gather(*list(map(lambda x: self.get_order_status(exchange_order_id=str(x['id'])), cancel_all_results)))
             cancellation_results = list(map(lambda x: CancellationResult(x['id'], x["state"] == "cancel"), results))
-
+            return cancellation_results
         except Exception as e:
             self.logger().network(
                 f"Failed to cancel all orders: {cancel_order_ids}",
                 exc_info=True,
                 app_warning_msg=f"Failed to cancel all orders on Peatio. Check API key and network connection."
             )
-        return cancellation_results
+        return []
 
     cdef OrderBook c_get_order_book(self, str trading_pair):
         cdef:

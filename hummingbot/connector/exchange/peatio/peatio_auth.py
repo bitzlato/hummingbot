@@ -7,13 +7,21 @@ from typing import (
 )
 
 
+LAST_TIMESTAMP = None
+
+
 class PeatioAuth:
     def __init__(self, access_key: str, secret_key: str):
         self.access_key: str = access_key
         self.secret_key: str = secret_key
 
-    def add_auth_data(self, headers: Dict[str, Any] = None, is_ws: bool = False) -> Dict[str, Any]:
-        nonce = str(datetime.now().timestamp() * 1000).split('.')[0]
+    def add_auth_data(self, headers: Dict[str, Any] = None) -> Dict[str, Any]:
+        global LAST_TIMESTAMP
+        timestamp = int(str(datetime.now().timestamp() * 1000).split('.')[0])
+        if LAST_TIMESTAMP is not None and LAST_TIMESTAMP >= timestamp:
+            timestamp = LAST_TIMESTAMP + 1
+        LAST_TIMESTAMP = timestamp
+        nonce = str(timestamp)
 
         if not headers:
             headers = {}
