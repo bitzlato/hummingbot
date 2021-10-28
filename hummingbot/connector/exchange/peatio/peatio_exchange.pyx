@@ -786,7 +786,7 @@ cdef class PeatioExchange(ExchangeBase):
                 tracked_order = self._in_flight_orders.get(req.client_order_id)
                 if tracked_order is not None:
                     self.logger().info(
-                        f"Created {order_type} 'buy' if is_buy else 'sell' order {req.client_order_id} ({exchange_order['id']})"
+                        f"Created {order_type} {'buy' if is_buy else 'sell'} order {req.client_order_id} ({exchange_order['id']})"
                         f" for {decimal_amount} {trading_pair} with status {exchange_order['state']}.")
                 if is_buy is True:
                     self.c_trigger_event(
@@ -1041,6 +1041,7 @@ cdef class PeatioExchange(ExchangeBase):
         return order_id
 
     async def cancel_all(self, timeout_seconds: float, **kwargs) -> List[CancellationResult]:
+        self.logger().info(f"cancel all orders for pair {kwargs.get('trading_pair')}")
         data = {}
         open_orders = filter(lambda x: x.is_open, self._in_flight_orders.values())
         if kwargs.get('trading_pair') is not None:
@@ -1049,13 +1050,10 @@ cdef class PeatioExchange(ExchangeBase):
         if kwargs.get('trade_type') is not None:
             open_orders = filter(lambda x: x.trade_type == kwargs.get('trade_type'), open_orders)
             data['side'] = "buy" if kwargs.get('trade_type') is TradeType.BUY else "sell"
+        open_orders = list(open_orders)
         cancel_order_ids = list(map(lambda x: x.exchange_order_id, open_orders))
 
-        if len(cancel_order_ids) == 0:
-            self.logger().info("opened orders not found")
-            return []
-
-        self.logger().info(f"cancel_order_ids {cancel_order_ids} orders: {list(open_orders)}")
+        self.logger().info(f"cancel_order_ids {cancel_order_ids} orders: {open_orders}")
         path_url = "/market/orders/cancel"
         try:
             cancel_all_results = await self._api_request(
