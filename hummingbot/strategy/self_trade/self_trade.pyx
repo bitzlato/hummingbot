@@ -443,6 +443,12 @@ cdef class SelfTradeStrategy(StrategyBase):
     def create_trade(self, market_info: MarketTradingPairTuple, price: Decimal, amount: Decimal):
         is_buy = bool(random.randint(0, 1))
         if isinstance(market_info.market, PeatioExchange):
+            if not self.c_has_enough_balance(market_info, is_buy=is_buy, order_price=price, order_amount=amount):
+                self.logger().info(f"Not enough balance {market_info.trading_pair} to run the strategy . Please check balances and try again.")
+                return None, None
+            if not self.c_has_enough_balance(market_info, is_buy=not is_buy, order_price=price, order_amount=amount):
+                self.logger().info(f"Not enough balance {market_info.trading_pair} to run the strategy. Please check balances and try again.")
+                return None, None
             first_order_id = get_new_client_order_id(TradeType.BUY if is_buy else TradeType.SELL, market_info.trading_pair)
             second_order_id = get_new_client_order_id(TradeType.BUY if not is_buy else TradeType.SELL, market_info.trading_pair)
             order_requests = [
