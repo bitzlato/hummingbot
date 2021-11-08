@@ -242,8 +242,13 @@ class PeatioAPIOrderBookDataSource(OrderBookTrackerDataSource):
                         elif len(required_streams.intersection(set(msg.keys()))) > 0:
                             for stream_name in required_streams.intersection(set(msg.keys())):
                                 trading_pair = stream_name.split(".")[0]
-                                sequence = msg[stream_name].get("sequence", 0)
-                                if sequence <= self.STATES.get(trading_pair, {}).get("last_sequence", -1):
+                                sequence = msg[stream_name]["sequence"]
+                                if sequence == 0:
+                                    del self.STATES[trading_pair]
+                                next_sequence = self.STATES.get(trading_pair, {}).get("last_sequence", 0) + 1
+                                if sequence > next_sequence:
+                                    raise ValueError("sequence does not match the latter")
+                                elif sequence < next_sequence:
                                     continue
                                 if stream_name.endswith(".ob-snap"):
                                     self.STATES[trading_pair] = {
@@ -279,7 +284,7 @@ class PeatioAPIOrderBookDataSource(OrderBookTrackerDataSource):
                                 order_book_message: OrderBookMessage = PeatioOrderBook.diff_message_from_exchange(data, metadata={"trading_pair": trading_pair})
                                 output.put_nowait(order_book_message)
                         else:
-                            self.logger().debug(f"Unrecognized message [listen_for_order_book_diffs] received from Peatio websocket: {msg}")
+                            self.logger().debug(f"Unrecognized message received from Peatio websocket: {msg}")
             except asyncio.CancelledError:
                 raise
             except Exception:
