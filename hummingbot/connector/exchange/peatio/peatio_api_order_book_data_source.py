@@ -251,9 +251,7 @@ class PeatioAPIOrderBookDataSource(OrderBookTrackerDataSource):
                                     except KeyError:
                                         pass
                                     next_sequence = sequence
-                                elif sequence != 1 and is_snapshot is True and self.STATES.get(trading_pair, {}).get("last_sequence") is None:
-                                    next_sequence = sequence
-                                elif sequence != 1 and is_snapshot is True and self.STATES.get(trading_pair, {}).get("ts", 0) < msg[stream_name]['ts']:
+                                elif is_snapshot is True and self.STATES.get(trading_pair, {}).get("ts", 0) < msg[stream_name]['ts']:
                                     next_sequence = sequence
                                 else:
                                     next_sequence = self.STATES.get(trading_pair, {}).get("last_sequence", 0) + 1
