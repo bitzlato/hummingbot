@@ -1,6 +1,4 @@
 #!/usr/bin/env python
-import datetime
-
 import aiohttp
 import asyncio
 import json
@@ -228,10 +226,12 @@ class PeatioAPIOrderBookDataSource(OrderBookTrackerDataSource):
                         ],
                         "event": "subscribe"
                     }
+                    subscribe_request['streams'] += [f"{convert_to_exchange_trading_pair(trading_pair)}.ob-snap"for trading_pair in trading_pairs]
                     required_streams = set(subscribe_request["streams"])
                     required_streams.update(
                         {f"{convert_to_exchange_trading_pair(trading_pair)}.ob-snap" for trading_pair in trading_pairs}
                     )
+
                     await ws.send(json.dumps(subscribe_request))
 
                     async for raw_msg in self._inner_messages(ws):
@@ -243,21 +243,34 @@ class PeatioAPIOrderBookDataSource(OrderBookTrackerDataSource):
                             for stream_name in required_streams.intersection(set(msg.keys())):
                                 trading_pair = stream_name.split(".")[0]
                                 sequence = msg[stream_name]["sequence"]
-                                if sequence == 0:
-                                    del self.STATES[trading_pair]
-                                next_sequence = self.STATES.get(trading_pair, {}).get("last_sequence", 0) + 1
+                                is_snapshot = stream_name.endswith(".ob-snap")
+
+                                if sequence == 1 and is_snapshot is True:
+                                    try:
+                                        self.STATES[trading_pair] = {}
+                                    except KeyError:
+                                        pass
+                                    next_sequence = sequence
+                                elif sequence != 1 and is_snapshot is True and self.STATES.get(trading_pair, {}).get("last_sequence") is None:
+                                    next_sequence = sequence
+                                else:
+                                    next_sequence = self.STATES.get(trading_pair, {}).get("last_sequence", 0) + 1
+
                                 if sequence > next_sequence:
                                     raise ValueError("sequence does not match the latter")
                                 elif sequence < next_sequence:
-                                    continue
+                                    raise ValueError("sequence does not match the latter")
+                                    # continue
                                 if stream_name.endswith(".ob-snap"):
                                     self.STATES[trading_pair] = {
                                         "last_sequence": sequence,
                                         "bids": dict(msg[stream_name].get("bids", [])),
                                         "asks": dict(msg[stream_name].get("asks", [])),
+                                        "ts": msg[stream_name]['ts']
                                     }
                                 elif stream_name.endswith(".ob-inc"):
                                     self.STATES[trading_pair]["last_sequence"] = sequence
+                                    self.STATES[trading_pair]["ts"] = msg[stream_name]['ts']
                                     new_bid = msg[stream_name].get('bids', [])
                                     if len(new_bid) > 1:
                                         if new_bid[1] != '':
@@ -278,8 +291,9 @@ class PeatioAPIOrderBookDataSource(OrderBookTrackerDataSource):
                                     "bids": list(self.STATES[trading_pair].get("bids", []).items()),
                                     "asks": list(self.STATES[trading_pair].get("asks", []).items()),
                                     "update_id": self.STATES[trading_pair].get("last_sequence", 0),
-                                    "timestamp": datetime.datetime.utcnow().timestamp(),
+                                    "timestamp": self.STATES[trading_pair]["ts"],
                                 }
+
                                 self.logger().info(f"{trading_pair} ob: {data}")
                                 order_book_message: OrderBookMessage = PeatioOrderBook.diff_message_from_exchange(data, metadata={"trading_pair": trading_pair})
                                 output.put_nowait(order_book_message)
@@ -288,8 +302,7 @@ class PeatioAPIOrderBookDataSource(OrderBookTrackerDataSource):
             except asyncio.CancelledError:
                 raise
             except Exception:
-                self.logger().error("Unexpected error with WebSocket connection. Retrying...",
-                                    exc_info=True)
+                self.logger().error("Unexpected error with WebSocket connection. Retrying...", exc_info=True)
                 await asyncio.sleep(0.1)
 
     async def listen_for_order_book_snapshots(self, ev_loop: asyncio.BaseEventLoop, output: asyncio.Queue):

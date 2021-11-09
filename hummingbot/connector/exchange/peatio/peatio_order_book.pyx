@@ -72,10 +72,11 @@ cdef class PeatioOrderBook(OrderBook):
         if metadata:
             msg.update(metadata)
         msg_ts = int(msg["timestamp"] * 1e-3)
+        update_id = int(msg["timestamp"] * 1e+3)
         content = {
             "trading_pair": convert_from_exchange_trading_pair(msg["trading_pair"]),
-            "update_id": msg["update_id"],
-            # "update_id": msg_ts,
+            # "update_id": msg["update_id"],
+            "update_id": update_id,
             "bids": msg["bids"],
             "asks": msg["asks"],
         }
