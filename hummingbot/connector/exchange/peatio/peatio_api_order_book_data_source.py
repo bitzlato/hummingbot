@@ -222,7 +222,7 @@ class PeatioAPIOrderBookDataSource(OrderBookTrackerDataSource):
                     inc_streams = [f"{convert_to_exchange_trading_pair(trading_pair)}.ob-inc" for trading_pair in trading_pairs]
                     snap_streams = [f"{convert_to_exchange_trading_pair(trading_pair)}.ob-snap"for trading_pair in trading_pairs]
                     subscribe_request: Dict[str, Any] = {
-                        "streams": inc_streams + snap_streams,
+                        "streams": inc_streams,
                         "event": "subscribe"
                     }
                     required_streams = set(inc_streams + snap_streams)
