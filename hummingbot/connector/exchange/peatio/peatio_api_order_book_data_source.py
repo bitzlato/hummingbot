@@ -219,19 +219,15 @@ class PeatioAPIOrderBookDataSource(OrderBookTrackerDataSource):
                 trading_pairs: List[str] = self._trading_pairs
                 async with websockets.connect(PEATIO_WS_PUBLIC_URL) as ws:
                     ws: websockets.WebSocketClientProtocol = ws
+                    inc_streams = [f"{convert_to_exchange_trading_pair(trading_pair)}.ob-inc" for trading_pair in trading_pairs]
+                    snap_streams = [f"{convert_to_exchange_trading_pair(trading_pair)}.ob-snap"for trading_pair in trading_pairs]
                     subscribe_request: Dict[str, Any] = {
-                        "streams": [
-                            f"{convert_to_exchange_trading_pair(trading_pair)}.ob-inc"
-                            for trading_pair in trading_pairs
-                        ],
+                        "streams": inc_streams + snap_streams,
                         "event": "subscribe"
                     }
-                    subscribe_request['streams'] += [f"{convert_to_exchange_trading_pair(trading_pair)}.ob-snap"for trading_pair in trading_pairs]
-                    required_streams = set(subscribe_request["streams"])
-                    required_streams.update(
-                        {f"{convert_to_exchange_trading_pair(trading_pair)}.ob-snap" for trading_pair in trading_pairs}
-                    )
+                    required_streams = set(inc_streams + snap_streams)
 
+                    self.logger().info(f"send msg: {subscribe_request}")
                     await ws.send(json.dumps(subscribe_request))
 
                     async for raw_msg in self._inner_messages(ws):
