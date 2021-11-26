@@ -192,9 +192,9 @@ cdef class PeatioExchange(ExchangeBase):
         self._stop_network()
         self._order_book_tracker.start()
         self._trading_rules_polling_task = safe_ensure_future(self._trading_rules_polling_loop())
-        # self._user_stream_event_listener_task = safe_ensure_future(self._user_stream_event_listener())
+        self._user_stream_event_listener_task = safe_ensure_future(self._user_stream_event_listener())
         if self._trading_required:
-            # self._user_stream_tracker_task = safe_ensure_future(self._user_stream_tracker.start())
+            self._user_stream_tracker_task = safe_ensure_future(self._user_stream_tracker.start())
             self._status_polling_task = safe_ensure_future(self._status_polling_loop())
 
     def _stop_network(self):
@@ -205,12 +205,12 @@ cdef class PeatioExchange(ExchangeBase):
         if self._trading_rules_polling_task is not None:
             self._trading_rules_polling_task.cancel()
             self._trading_rules_polling_task = None
-        # if self._user_stream_event_listener_task is not None:
-        #     self._user_stream_event_listener_task.cancel()
-        #     self._user_stream_event_listener_task = None
-        # if self._user_stream_tracker_task is not None:
-        #     self._user_stream_tracker_task.cancel()
-        #     self._user_stream_tracker_task = None
+        if self._user_stream_event_listener_task is not None:
+            self._user_stream_event_listener_task.cancel()
+            self._user_stream_event_listener_task = None
+        if self._user_stream_tracker_task is not None:
+            self._user_stream_tracker_task.cancel()
+            self._user_stream_tracker_task = None
 
     async def stop_network(self):
         self._stop_network()
@@ -453,6 +453,7 @@ cdef class PeatioExchange(ExchangeBase):
                 self.logger().debug(f"update_tracked_order --- 3; executed_amount_base: {tracked_order.executed_amount_base}, executed_amount_quote: {tracked_order.executed_amount_quote}")
                 tracked_order.executed_amount_base += Decimal(trade.get("amount", 0))
                 tracked_order.executed_amount_quote += Decimal(trade.get("total", 0))
+                tracked_order.amount = new_confirmed_amount
 
                 price = Decimal(trade.get("price", 0))
                 self.logger().debug(f"update_tracked_order --- 4; price: {price}")
@@ -647,8 +648,8 @@ cdef class PeatioExchange(ExchangeBase):
         async for stream_message in self._iter_user_stream_queue():
             try:
                 for channel in stream_message.keys():
-                    # if channel not in PEATIO_SUBSCRIBE_TOPICS:
-                    #     continue
+                    if channel not in PEATIO_SUBSCRIBE_TOPICS:
+                        continue
                     data = stream_message[channel]
                     # if len(data) == 0 and stream_message["code"] == 200:
                     #     # This is a subcribtion confirmation.
@@ -664,21 +665,22 @@ cdef class PeatioExchange(ExchangeBase):
                     #     self._account_available_balances.update({asset_name: Decimal(available_balance)})
                     #     continue
 
-                    # elif channel == PEATIO_ORDER_UPDATE_TOPIC:
-                    #     exchange_order_id = data["id"]
-                    #
-                    #     tracked_order = self.get_in_flight_orders_by_exchange_id(exchange_order_id)
-                    #     if tracked_order is None:
-                    #         continue
-                    #
-                    #     await self.update_tracked_order(
-                    #         order_obj=data,
-                    #         tracked_order=tracked_order,
-                    #         exch_order_id=exchange_order_id
-                    #     )
-                    # else:
-                    #     # Ignore all other user stream message types
-                    #     continue
+                    if channel == PEATIO_ORDER_UPDATE_TOPIC:
+                        self.logger().info(data)
+                        exchange_order_id = str(data["id"])
+
+                        tracked_order = self.get_in_flight_orders_by_exchange_id(exchange_order_id)
+                        if tracked_order is None:
+                            continue
+
+                        await self.update_tracked_order(
+                            order_obj=data,
+                            tracked_order=tracked_order,
+                            exch_order_id=exchange_order_id
+                        )
+                    else:
+                        # Ignore all other user stream message types
+                        continue
             except asyncio.CancelledError:
                 raise
             except Exception as e:
@@ -772,6 +774,7 @@ cdef class PeatioExchange(ExchangeBase):
                 data={"orders": data},
                 is_auth_required=True
             )
+            self.logger().info(f"exchange_orders: {exchange_orders}, data: {data}")
             for req, exchange_order in map_orders_data_to_results(exchange_orders).items():
                 self.c_start_tracking_order(
                     client_order_id=str(req.client_order_id),

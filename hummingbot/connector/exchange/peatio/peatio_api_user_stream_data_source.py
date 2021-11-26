@@ -15,15 +15,15 @@ from typing import (
 from hummingbot.connector.exchange.peatio.peatio_auth import PeatioAuth
 from hummingbot.connector.exchange.peatio.peatio_urls import PEATIO_WS_URL
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
+from hummingbot.core.utils.async_utils import safe_ensure_future
 from hummingbot.logger import HummingbotLogger
 
 
 # PEATIO_ACCOUNT_UPDATE_TOPIC = "accounts.update#2"
-PEATIO_ORDER_UPDATE_TOPIC = "orders"
+PEATIO_ORDER_UPDATE_TOPIC = "order"
 
 PEATIO_SUBSCRIBE_TOPICS = {
     PEATIO_ORDER_UPDATE_TOPIC,
-    # PEATIO_ACCOUNT_UPDATE_TOPIC
 }
 
 
@@ -93,15 +93,6 @@ class PeatioAPIUserStreamDataSource(UserStreamTrackerDataSource):
 
                 message = raw_msg.json()
 
-                # # Handle ping messages
-                # if message["action"] == "ping":
-                #     pong_response = {
-                #         "action": "pong",
-                #         "data": message["data"]
-                #     }
-                #     await self._websocket_connection.send_json(pong_response)
-                #     continue
-
                 yield message
             except asyncio.TimeoutError:
                 self.logger().error("Userstream websocket timeout, going to reconnect...")
@@ -113,14 +104,10 @@ class PeatioAPIUserStreamDataSource(UserStreamTrackerDataSource):
                 # Initialize Websocket Connection
                 async with (await self.get_ws_connection()) as ws:
                     self._websocket_connection = ws
-                #
-                #     # Authentication
-                #     # await self._authenticate_client()
-                #
+
                     # Subscribe to Topic(s)
-                #     # await self._subscribe_topic(PEATIO_ORDER_UPDATE_TOPIC)
-                #     # await self._subscribe_topic(PEATIO_ACCOUNT_UPDATE_TOPIC)
-                #
+                    await self._subscribe_topic(PEATIO_ORDER_UPDATE_TOPIC)
+
                     # Listen to WebSocket Connection
                     async for message in self._socket_user_stream():
                         output.put_nowait(message)
@@ -182,6 +169,25 @@ class PeatioAPIUserStreamDataSourceNew(UserStreamTrackerDataSource):
         }
         await ws_connection.send_json(subscribe_request)
 
+    async def _place_order(self, ws_connection: aiohttp.ClientWebSocketResponse,
+                           _uuid: str, market: str, side: str, volume: Decimal, ord_type: str, price: Decimal) -> str:
+
+        request = {
+            "event": "order",
+            "data": {
+                "market": market,
+                "side": side,
+                "volume": str(volume),
+                "ord_type": ord_type,
+                "price": str(price),
+                "uuid": _uuid
+            }
+        }
+
+        await ws_connection.send_json(request)
+
+        return _uuid
+
     async def unsubscribe_to_topics(self, ws_connection: aiohttp.ClientWebSocketResponse, topics: List[str]):
         subscribe_request = {
             "event": "unsubscribe",
@@ -191,20 +197,6 @@ class PeatioAPIUserStreamDataSourceNew(UserStreamTrackerDataSource):
         }
 
         await ws_connection.send_json(subscribe_request)
-
-    async def _place_order(self, ws_connection: aiohttp.ClientWebSocketResponse, market: str, side: str, volume: Decimal, price: Decimal, ord_type: str):
-        request = {
-            "event": "order",
-            "data": {
-                "market": market,
-                "side": side,
-                "volume": str(volume),
-                "ord_type": ord_type,
-                "price": str(price)
-            }
-        }
-
-        await ws_connection.send_json(request)
 
     async def _socket_user_stream(self, ws_connection: aiohttp.ClientWebSocketResponse) -> AsyncIterable[str]:
         """
@@ -229,26 +221,60 @@ class PeatioAPIUserStreamDataSourceNew(UserStreamTrackerDataSource):
         finally:
             await ws_connection.close()
 
-    async def place_order(self, order_id: str, market: str, side: str, volume: Decimal, price: Decimal, ord_type: str):
-        try:
-            if not self._websocket_connection.closed:
-                await self._place_order(
-                    ws_connection=self._websocket_connection,
-                    market=market,
-                    side=side,
-                    volume=volume,
-                    price=price,
-                    ord_type=ord_type
-                )
-                return order_id
-            else:
-                self.logger().warning(f"The {order_id} order could not be created because the ws connection with the server is closed")
-                raise ConnectionError("connection with WS socket closed")
-        except Exception as e:
-            self.logger().error(f"The {order_id} order could not be created due to an internal error", exc_info=True)
-            raise e
+    async def listen_for_user_stream(self, ev_loop: asyncio.BaseEventLoop, output: asyncio.Queue, **kwargs):
+        await self.start(ev_loop=ev_loop, output=output, user_input=kwargs.get('user_input'))
 
-    async def listen_for_user_stream(self, ev_loop: asyncio.BaseEventLoop, output: asyncio.Queue):
+    async def listener_order_info_task(self, ws: aiohttp.ClientWebSocketResponse, output: asyncio.Queue):
+        await self.subscribe_to_topics(ws, self.SUBSCRIBE_TOPICS)
+
+        # Listen to WebSocket Connection
+        async for message in self._socket_user_stream(ws):
+            output.put_nowait(message)
+
+    async def _iter_order_stream_queue(self, queue: asyncio.Queue) -> AsyncIterable[Dict[str, Any]]:
+        while True:
+            try:
+                yield await queue.get()
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                self.logger().error(f"Unknown error. Retrying after 1 second. {e}", exc_info=True)
+                await asyncio.sleep(1.0)
+
+    async def sender_order_task(self, ws: aiohttp.ClientWebSocketResponse, _input: asyncio.Queue):
+        async for order_message in self._iter_order_stream_queue(queue=_input):
+            try:
+                # _uuid: str, market: str, side: str, volume: Decimal, ord_type: str, price: Decimal
+
+                _uuid = order_message["uuid"]
+                market = order_message["market"]
+                side = order_message["side"]
+                volume = order_message["volume"]
+                ord_type = order_message["ord_type"]
+                price = order_message["price"]
+
+                assert isinstance(_uuid, str), "_uuid must be str"
+                assert isinstance(market, str), "market must be str"
+                assert isinstance(side, str), "side must be str"
+                assert isinstance(volume, Decimal), "volume must be Decimal"
+                assert isinstance(ord_type, str), "ord_type must be str"
+                assert isinstance(price, Decimal), "price must be Decimal"
+
+                await self._place_order(ws_connection=ws, _uuid=_uuid, market=market,
+                                        side=side, volume=volume, ord_type=ord_type, price=price)
+            except KeyError:
+                self.logger().warning("order data is failed.", exc_info=True)
+                continue
+            except AssertionError:
+                self.logger().warning("order data is failed.", exc_info=True)
+                continue
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                self.logger().error(f"Unexpected error in user stream listener loop. {e}", exc_info=True)
+                await asyncio.sleep(5.0)
+
+    async def start(self, ev_loop: asyncio.BaseEventLoop, user_input: asyncio.Queue, output: asyncio.Queue):
         while True:
             try:
                 # Initialize Websocket Connection
@@ -256,12 +282,15 @@ class PeatioAPIUserStreamDataSourceNew(UserStreamTrackerDataSource):
                 async with (await self.get_ws_connection()) as ws:
                     self._websocket_connection = ws
 
-                    # Subscribe to Topic(s)
-                    await self.subscribe_to_topics(ws, self.SUBSCRIBE_TOPICS)
+                    listener_task = safe_ensure_future(self.listener_order_info_task(ws=ws, output=output))
+                    sender_task = safe_ensure_future(self.sender_order_task(ws=ws, _input=user_input))
 
-                    # Listen to WebSocket Connection
-                    async for message in self._socket_user_stream(ws):
-                        output.put_nowait(message)
+                    while not ws.closed:
+                        time.sleep(0.01)
+
+                    listener_task.cancel()
+                    sender_task.cancel()
+            #
             except asyncio.CancelledError:
                 raise
             except Exception:

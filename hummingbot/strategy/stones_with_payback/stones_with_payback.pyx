@@ -435,40 +435,45 @@ cdef class StonesWithPaybackStrategy(StrategyBase):
             set cancel_order_ids = set()
             str trading_pair = market_info.trading_pair
 
+        def place_order(orders_data):
+            for is_buy, price, liquidity, order_level in orders_data:
+                if self._last_opened_order_timestamp[order_level] + self._time_delay > self._current_timestamp:
+                    self.logger().info(
+                        f"Delay {(self._last_opened_order_timestamp[order_level] + self._time_delay) - self._current_timestamp} for {order_level}")
+                    break
+
+                if price > s_decimal_zero and liquidity > s_decimal_zero:
+                    order_id = self.c_place_orders(market_info, is_buy=is_buy, order_price=price, order_amount=liquidity)
+                    if order_id is not None:
+                        self._last_opened_order_timestamp[order_level] = self._current_timestamp
+                        self.map_order_id_to_level[order_id] = order_level
+                        self.map_order_id_to_oracle_price[order_id] = oracle_price
+
         orders_for_cancel = self.find_orders_that_need_closed(market_info=market_info)
 
+        is_buy_count = 0
+        is_sell_count = 0
+
         for order in orders_for_cancel:
+            if order.is_buy:
+                if is_buy_count > 1:
+                    continue
+                is_buy_count += 1
+            else:
+                if is_sell_count > 1:
+                    continue
+                is_sell_count += 1
+
             self.logger().info(f"cancel {'buy' if order.is_buy else 'ask'} LIMIT order with {order.client_order_id} ID")
             self.c_cancel_order(market_info, order.client_order_id)
 
         oracle_price = self.get_oracle_price(maker_market=maker_market, trading_pair=trading_pair)
 
         buy_orders_data = self.get_data_for_orders(market_info=market_info, current_price=oracle_price, liquidity=self._total_buy_order_amount[trading_pair], is_buy=True)
-        for is_buy, price, liquidity, order_level in buy_orders_data:
-            if self._last_opened_order_timestamp[order_level] + self._time_delay > self._current_timestamp:
-                self.logger().info(f"Delay {(self._last_opened_order_timestamp[order_level] + self._time_delay) - self._current_timestamp} for {order_level}")
-                break
-            if price > s_decimal_zero and liquidity > s_decimal_zero:
-                order_id = self.c_place_orders(market_info, is_buy=is_buy, order_price=price, order_amount=liquidity)
-                # order_id = None
-                # self.logger().info(f"self.c_place_orders({market_info}, is_buy={is_buy}, order_price={price}, order_amount={liquidity})")
-                if order_id is not None:
-                    self._last_opened_order_timestamp[order_level] = self._current_timestamp
-                    self.map_order_id_to_level[order_id] = order_level
-                    self.map_order_id_to_oracle_price[order_id] = oracle_price
+        place_order(buy_orders_data)
 
         sell_orders_data = self.get_data_for_orders(market_info=market_info, current_price=oracle_price, liquidity=self._total_sell_order_amount[trading_pair], is_buy=False)
-        for is_buy, price, liquidity, order_level in sell_orders_data:
-            if self._last_opened_order_timestamp[order_level] + self._time_delay > self._current_timestamp:
-                break
-            if price > s_decimal_zero and liquidity > s_decimal_zero:
-                order_id = self.c_place_orders(market_info, is_buy=is_buy, order_price=price, order_amount=liquidity)
-                # order_id = None
-                # self.logger().info(f"self.c_place_orders({market_info}, is_buy={is_buy}, order_price={price}, order_amount={liquidity})")
-                if order_id is not None:
-                    self._last_opened_order_timestamp[order_level] = self._current_timestamp
-                    self.map_order_id_to_level[order_id] = order_level
-                    self.map_order_id_to_oracle_price[order_id] = oracle_price
+        place_order(sell_orders_data)
 
     def add_order_level(self, level: OrderLevel, is_buy: bool):
         if is_buy is True:
