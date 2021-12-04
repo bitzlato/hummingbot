@@ -720,13 +720,47 @@ cdef class PeatioExchange(ExchangeBase):
             "price": f"{price:f}",
         }
 
-        exchange_order = await self._api_request(
-            "post",
-            path_url=path_url,
-            data=params,
-            is_auth_required=True
-        )
+        try:
+            exchange_order = await self._api_request(
+                "post",
+                path_url=path_url,
+                data=params,
+                is_auth_required=True
+            )
+        except Exception as e:
+            self.logger().error(f"Error place order with params {params}", exc_info=True)
+            await self.sync_orders(trading_pair=trading_pair, depth=3)
+            raise e
         return exchange_order
+
+    async def sync_orders(self, trading_pair: str, depth: int = 3):
+        self.logger().info(f"start sync orders for market {trading_pair}")
+        try:
+            path_url = "/market/orders"
+
+            wait_orders = await self._api_request(
+                "get",
+                path_url=path_url,
+                data={"market": convert_to_exchange_trading_pair(trading_pair), "state": "wait"},
+                is_auth_required=True
+            )
+
+            pending_orders = await self._api_request(
+                "get",
+                path_url=path_url,
+                data={"market": convert_to_exchange_trading_pair(trading_pair), "state": "pending"},
+                is_auth_required=True
+            )
+
+            known_order_ids = set(map(lambda x: x.exchange_order_id, self.in_flight_orders.values()))
+            for order_id in set(map(lambda x: str(x['id']), wait_orders + pending_orders)).difference(known_order_ids):
+                cancel_path_url = f"/market/orders/{order_id}/cancel"
+                response = await self._api_request("post", path_url=cancel_path_url, is_auth_required=True)
+        except Exception:
+            if depth > 0:
+                await self.sync_orders(trading_pair=trading_pair, depth=depth - 1)
+            else:
+                self.logger().notify(f"failed to cancel orders for market = {trading_pair}")
 
     async def batch_place_order(self, orders_data: List[OrderRequest]):
         path_url = "/market/orders/batch"
@@ -1065,6 +1099,8 @@ cdef class PeatioExchange(ExchangeBase):
                 is_auth_required=True
             )
             self.logger().info(f"cancel_all_results: {cancel_all_results}")
+            if len(open_orders) < 1:
+                return []
             results = await safe_gather(*list(map(lambda x: self.get_order_status(exchange_order_id=str(x['id'])), cancel_all_results)))
             cancellation_results = list(map(lambda x: CancellationResult(x['id'], x["state"] == "cancel"), results))
             return cancellation_results
