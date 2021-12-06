@@ -360,6 +360,18 @@ main_config_map = {
                   validator=lambda v: validate_decimal(v, 1, 100, inclusive=True),
                   required_if=lambda: False,
                   default=Decimal("100")),
+    "webui_enabled":
+        ConfigVar(key="webui_enabled",
+                  prompt="Would you like to enable webui? >>> ",
+                  type_str="bool",
+                  default=False,
+                  required_if=lambda: False),
+    "webui_port":
+        ConfigVar(key="webui_port",
+                  prompt="On which port to run webui? >>> ",
+                  type_str="int",
+                  default=7777,
+                  required_if=lambda: False),
 }
 
 global_config_map = {**key_config_map, **main_config_map}

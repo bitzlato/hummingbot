@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+    .configField {
+        width: 60%;
+        height: 60%;
+        border: 1px solid #ffffff;
+        margin-left: 10px;
+        margin-bottom: 10px;
+        padding: 10px;
+        color: white;
+        background: #2c313a;
+    }
+
+    .configField input {
+        padding: 6px;
+        text-align: center;
+        background: #343434;
+        color: greenyellow;
+    }
+</style>
+<h2 class="headerText">{{config_name}}</h2>
+<form action="" method="post">
+    <p>
+        <textarea class="configField" name="config">{{conf_yml}}</textarea>
+    </p>
+    <p>
+        <input style="color: greenyellow; background: #343434" type="submit">
+    </p>
+</form>
+{% endblock %}

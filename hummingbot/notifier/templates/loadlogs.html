@@ -1,0 +1,57 @@
+<style>
+    .logsTable {
+        float: left;
+        width: 90%;
+        border: 1px solid black;
+        margin-left: 10px;
+        margin-bottom: 10px;
+        padding: 10px;
+        color: white;
+        background: #2c313a;
+    }
+
+    .logsTable th, .logsTable td {
+        padding: 6px;
+        text-align: center;
+        font-size: small;
+    }
+
+    .tableHeader {
+        color: gray;
+    }
+
+    .ERROR {
+        color: #bd0d0d;
+    }
+
+    .WARNING {
+        color: #ee6504;
+    }
+
+    .NETWORK {
+        color: #eebf04;
+    }
+
+    .EVENT_LOG {
+        color: #3185d9;
+    }
+
+</style>
+<div id="logsTable" class="logsTable">
+    <table>
+        <tr class="tableHeader">
+            <th>date</th>
+            <th>source</th>
+            <th>level</th>
+            <th>log</th>
+        </tr>
+        {% for line in lines %}
+        <tr class="{{ line['level'] }}">
+            <td>{{ line['date'] }}</td>
+            <td>{{ line['source'] }}</td>
+            <td>{{ line['level'] }}</td>
+            <td>{{ line['log'] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>

@@ -32,6 +32,7 @@ from hummingbot.core.utils.trading_pair_fetcher import TradingPairFetcher
 from hummingbot.data_feed.data_feed_base import DataFeedBase
 from hummingbot.notifier.notifier_base import NotifierBase
 from hummingbot.notifier.telegram_notifier import TelegramNotifier
+from hummingbot.notifier.web import WebNotifier
 from hummingbot.strategy.market_trading_pair_tuple import MarketTradingPairTuple
 from hummingbot.connector.markets_recorder import MarketsRecorder
 from hummingbot.client.config.security import Security
@@ -296,6 +297,14 @@ class HummingbotApplication(*commands):
                     TelegramNotifier(
                         token=global_config_map["telegram_token"].value,
                         chat_id=global_config_map["telegram_chat_id"].value,
+                        hb=self,
+                    )
+                )
+        if global_config_map.get("webui_enabled").value:
+            if not any([isinstance(n, WebNotifier) for n in self.notifiers]):
+                self.notifiers.append(
+                    WebNotifier.get_instance(
+                        port=global_config_map.get("webui_port").value,
                         hb=self,
                     )
                 )

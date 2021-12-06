@@ -27,8 +27,7 @@ def start(self):
 
         try:
             trading_pairs: list = raw_market_trading_pair
-            assets: [Tuple[str, str]] = list(
-                map(lambda x: tuple(x), self._initialize_market_assets(market, trading_pairs)))
+            assets: [Tuple[str, str]] = list(map(lambda x: tuple(x), self._initialize_market_assets(market, trading_pairs)))
         except ValueError as e:
             self._notify(str(e))
             return

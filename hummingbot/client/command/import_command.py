@@ -21,7 +21,7 @@ class ImportCommand:
         if file_name is not None:
             file_name = format_config_file_name(file_name)
 
-        safe_ensure_future(self.import_config_file(file_name))
+        safe_ensure_future(self.import_config_file(file_name), loop=self.ev_loop)
 
     async def import_config_file(self,  # type: HummingbotApplication
                                  file_name):

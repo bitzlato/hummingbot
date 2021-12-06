@@ -1,0 +1,57 @@
+<style>
+    .tradesTable {
+        float: left;
+        width: 80%;
+        border: 1px solid black;
+        margin-left: 10px;
+        margin-bottom: 10px;
+        padding: 10px;
+        color: white;
+        background: #2c313a;
+    }
+
+    .tradesTable th, .tradesTable td {
+        padding: 6px;
+        text-align: center;
+    }
+
+    .tableHeader {
+        color: gray;
+    }
+
+    .SELL {
+        color: red;
+    }
+
+    .BUY {
+        color: green;
+    }
+</style>
+<div id="tradesTable" class="tradesTable">
+    <table>
+        <tr class="tableHeader">
+            <th>trade_type</th>
+            <th>market</th>
+            <th>symbol</th>
+            <th>exchange_trade_id</th>
+            <th>order_id</th>
+            <th>price</th>
+            <th>amount</th>
+            <th>timestamp</th>
+            <th>time</th>
+        </tr>
+        {% for trade in trades_hist %}
+        <tr>
+            <td class="{{ trade.trade_type }}">{{ trade.trade_type }}</td>
+            <td>{{ trade.market }}</td>
+            <td>{{ trade.symbol }}</td>
+            <td>{{ trade.exchange_trade_id }}</td>
+            <td>{{ trade.order_id }}</td>
+            <td>{{ trade.price }}</td>
+            <td>{{ trade.amount }}</td>
+            <td>{{ trade.timestamp }}</td>
+            <td>{{ trade.timestamp | ctime }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>

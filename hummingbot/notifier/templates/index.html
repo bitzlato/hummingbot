@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+<style>
+    .commandPanel {
+        float: left;
+        width: 80%;
+        border: 1px solid black;
+        margin-left: 10px;
+        margin-bottom: 10px;
+        padding: 10px;
+        color: white;
+    }
+
+    .commandPanel form {
+        padding: 6px;
+        text-align: center;
+        background: #343434;
+        color: greenyellow;
+    }
+</style>
+{% block content %}
+<h1 class="headerText">Control Panel</h1>
+{% include "messages.html" %}
+<br>
+<div class="commandPanel">
+    <form action="" method="post">
+        <button style="color: greenyellow; background: #343434" type="submit" name="command" value="start">start</button>
+        <button style="color: greenyellow; background: #343434" type="submit" name="command" value="stop">stop</button>
+        <button style="color: greenyellow; background: #343434" type="submit" name="command" value="status">status</button>
+        <button style="color: greenyellow; background: #343434" type="submit" name="command" value="import">reload conf</button>
+    </form>
+</div>
+{% endblock %}

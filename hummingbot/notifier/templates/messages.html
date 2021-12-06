@@ -1,0 +1,22 @@
+<style>
+    .messageBox {
+        float: left;
+        width: 80%;
+        border: 1px solid black;
+        margin-left: 10px;
+        margin-bottom: 10px;
+        padding: 10px;
+        background: #2c313a;
+    }
+
+    .messageBox p {
+        padding: 6px;
+        text-align: left;
+        font-size: small;
+    }
+</style>
+<div id="messageBox" class="messageBox">
+    {% for msg in messages %}
+    <p>{{ msg }}</p>
+    {% endfor %}
+</div>

@@ -159,6 +159,8 @@ def main():
         "sqlalchemy",
         "ujson",
         "yarl",
+        "flask==2.0.2",
+        "turbo-flask==0.8.0"
     ]
 
     cython_kwargs = {

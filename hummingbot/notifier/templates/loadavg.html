@@ -1,0 +1,29 @@
+<style>
+    .load {
+        left: 0;
+        bottom: 0;
+        position: fixed;
+        float: right;
+        width: 98%;
+        background: #1f1f1f;
+        border: 1px solid black;
+        margin-left: 10px;
+        margin-bottom: 20px;
+        padding: 10px;
+        color: white;
+      }
+      .tradeInfo {
+        color: greenyellow;
+        float: left;
+      }
+      .sysInfo {
+        color: greenyellow;
+        margin-left: 30px;
+        float: right;
+      }
+</style>
+<div id="load" class="load">
+    <div class="tradeInfo">{{trades}};</div>
+    <div class="sysInfo">{{system_info}}</div>
+    <div class="sysInfo">{{duration}};</div>
+</div>

@@ -1,0 +1,88 @@
+<style>
+    .ordersTable {
+        float: left;
+        width: 80%;
+        border: 1px solid black;
+        margin-left: 10px;
+        margin-bottom: 10px;
+        padding: 10px;
+        color: white;
+        background: #2c313a;
+    }
+
+    .ordersTable th, .ordersTable td {
+        padding: 6px;
+        text-align: center;
+    }
+
+    .tableHeader {
+        color: gray;
+    }
+
+    .SELL {
+        color: red;
+    }
+
+    .BUY {
+        color: green;
+    }
+</style>
+<div id="ordersTable" class="ordersTable">
+    {% for market, orders_data in orders.items() %}
+    <h2 class="SELL">{{market}} SELL ORDERS</h2>
+    <table>
+        <tr class="tableHeader">
+            <th>trading_pair</th>
+            <th>trade_type</th>
+            <th>last_state</th>
+            <th>price</th>
+            <th>amount</th>
+            <th>exchange_order_id</th>
+            <th>client_order_id</th>
+            <th>trade_ids</th>
+            <th>trade_count</th>
+        </tr>
+        {% for order in orders_data.sell_orders %}
+        <tr>
+            <td>{{ order.trading_pair }}</td>
+            <td>{{ order.trade_type }}</td>
+            <td>{{ order.last_state }}</td>
+            <td>{{ order.price }}</td>
+            <td>{{ order.amount }}</td>
+            <td>{{ order.exchange_order_id }}</td>
+            <td>{{ order.client_order_id }}</td>
+            <td>{{ order.trade_ids }}</td>
+            <td>{{ order.trade_ids|length }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    <br>
+    <h2 class="BUY">{{market}} BUY ORDERS</h2>
+    <table>
+        <tr class="tableHeader">
+            <th>trading_pair</th>
+            <th>trade_type</th>
+            <th>last_state</th>
+            <th>price</th>
+            <th>amount</th>
+            <th>exchange_order_id</th>
+            <th>client_order_id</th>
+            <th>trade_ids</th>
+            <th>trade_count</th>
+        </tr>
+        {% for order in orders_data.buy_orders %}
+        <tr>
+            <td>{{ order.trading_pair }}</td>
+            <td>{{ order.trade_type }}</td>
+            <td>{{ order.last_state }}</td>
+            <td>{{ order.price }}</td>
+            <td>{{ order.amount }}</td>
+            <td>{{ order.exchange_order_id }}</td>
+            <td>{{ order.client_order_id }}</td>
+            <td>{{ order.trade_ids }}</td>
+            <td>{{ order.trade_ids|length }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% endfor %}
+</div>

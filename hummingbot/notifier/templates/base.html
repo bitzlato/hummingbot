@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+<head>
+    <title>Hummingbot</title>
+    {{ turbo() }}
+</head>
+<style>
+    .base {
+        background: #1f242b;
+        color: white;
+    }
+    .headerText {
+        color: #f0f3f9;
+    }
+    .buttonSubmit {
+        padding: 6px;
+        text-align: center;
+        background: #343434;
+        color: greenyellow;
+    }
+</style>
+<body class="base">
+{% include "header.html" %}
+{% include "loadavg.html" %}
+<!--{% include "navbox.html" %}-->
+{% block content %}{% endblock %}
+</body>

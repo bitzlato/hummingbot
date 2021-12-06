@@ -153,6 +153,9 @@ telegram_enabled: false
 telegram_token: null
 telegram_chat_id: null
 
+webui_enabled: false
+webui_port: 7777
+
 # Error log sharing
 send_error_logs: null
 

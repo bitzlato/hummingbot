@@ -1,0 +1,51 @@
+<style>
+    .headerBox {
+        left: 0;
+        position: fixed;
+        width: 98%;
+        background: #1f1f1f;
+        border: 1px solid black;
+        margin-left: 10px;
+        margin-bottom: 20px;
+        padding: 10px;
+        color: white;
+    }
+
+    .headerLinks {
+        color: #3185d9;
+        float: left;
+    }
+
+    .headerLinks a {
+        text-decoration: none;
+        color: #3185d9;
+    }
+
+    .headerButton {
+        margin-left: 30px;
+        float: right;
+    }
+
+    .headerButton button {
+        padding: 6px;
+        background: #343434;
+        color: greenyellow;
+        text-align: center;
+    }
+</style>
+<div id="headerBox" class="headerBox">
+    <div class="headerLinks">
+        <a href="/">control panel</a>
+        <a href="/orders">orders</a>
+        <a href="/trades">trades</a>
+        <a href="/config">config</a>
+        <a href="/balances">balances</a>
+        <a href="/logs">logs</a>
+    </div>
+    <div class="headerButton">
+        <form action="/" method="post">
+            <button class="commandButton" type="submit" name="command" value="start">start</button>
+            <button class="commandButton" type="submit" name="command" value="stop">stop</button>
+        </form>
+    </div>
+</div>

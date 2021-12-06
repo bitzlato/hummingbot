@@ -1049,15 +1049,6 @@ cdef class PeatioExchange(ExchangeBase):
 
         except PeatioAPIError as e:
             order_state = e.error_payload.get("error").get("order-state")
-            # if order_state == 7:
-            #     # order-state is canceled
-            #     self.c_stop_tracking_order(tracked_order.client_order_id)
-            #     self.logger().info(f"The order {tracked_order.client_order_id} has been cancelled according"
-            #                        f" to order status API. order_state - {order_state}")
-            #     self.c_trigger_event(self.MARKET_ORDER_CANCELLED_EVENT_TAG,
-            #                          OrderCancelledEvent(self._current_timestamp,
-            #                                              tracked_order.client_order_id))
-            # else:
             self.logger().network(
                 f"Failed to cancel order {client_order_id}: {str(e)}",
                 exc_info=True,
