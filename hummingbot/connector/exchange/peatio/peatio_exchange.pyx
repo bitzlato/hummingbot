@@ -193,7 +193,7 @@ cdef class PeatioExchange(ExchangeBase):
         self._stop_network()
         self._order_book_tracker.start()
         self._trading_rules_polling_task = safe_ensure_future(self._trading_rules_polling_loop())
-        self._order_sync_polling_task = safe_ensure_future(self._order_sync_polling_loop())
+        # self._order_sync_polling_task = safe_ensure_future(self._order_sync_polling_loop())
         self._user_stream_event_listener_task = safe_ensure_future(self._user_stream_event_listener())
         if self._trading_required:
             self._user_stream_tracker_task = safe_ensure_future(self._user_stream_tracker.start())
