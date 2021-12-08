@@ -623,7 +623,13 @@ cdef class PeatioExchange(ExchangeBase):
     async def _order_sync_polling_loop(self):
         while True:
             try:
-                await self.sync_orders(depth=0)
+                # for pair in set(map(self.in_flight_orders.values())):
+                await safe_gather(
+                    *list(
+                        map(lambda x: self.sync_orders(trading_pair=x, depth=0),
+                            set(map(lambda x: x.trading_pair, self.in_flight_orders.values())))
+                    )
+                )
             except Exception:
                 self.logger().network("Unexpected error while sync orders.",
                                       exc_info=True,
@@ -752,18 +758,19 @@ cdef class PeatioExchange(ExchangeBase):
     async def sync_orders(self, trading_pair: str = None, depth: int = 3):
         self.logger().info(f"start sync orders for market {trading_pair}")
         try:
+            exchange_trading_pair = convert_to_exchange_trading_pair(trading_pair) if trading_pair is not None else None
             path_url = "/market/orders"
             wait_orders = await self._api_request(
                 "get",
                 path_url=path_url,
-                data={"market": convert_to_exchange_trading_pair(trading_pair), "state": "wait"},
+                data={"market": exchange_trading_pair, "state": "wait"},
                 is_auth_required=True
             )
 
             pending_orders = await self._api_request(
                 "get",
                 path_url=path_url,
-                data={"market": convert_to_exchange_trading_pair(trading_pair), "state": "pending"},
+                data={"market": exchange_trading_pair, "state": "pending"},
                 is_auth_required=True
             )
 
@@ -776,7 +783,7 @@ cdef class PeatioExchange(ExchangeBase):
             if depth > 0:
                 await self.sync_orders(trading_pair=trading_pair, depth=depth - 1)
             else:
-                self.logger().notify(f"failed to cancel orders for market = {trading_pair}")
+                self.logger().error(f"failed to cancel orders for market = {trading_pair}", exc_info=True)
 
     async def batch_place_order(self, orders_data: List[OrderRequest]):
         path_url = "/market/orders/batch"
