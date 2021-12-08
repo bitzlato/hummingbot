@@ -19,6 +19,7 @@ cdef class PeatioExchange(ExchangeBase):
         dict _trading_rules
         object _user_stream_tracker
         public object _trading_rules_polling_task
+        public object _order_sync_polling_task
         public object _user_stream_event_listener_task
         public object _user_stream_tracker_task
         TransactionTracker _tx_tracker
