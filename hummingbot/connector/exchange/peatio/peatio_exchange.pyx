@@ -124,6 +124,7 @@ cdef class PeatioExchange(ExchangeBase):
         self._trading_required = trading_required
         self._trading_rules = {}
         self._trading_rules_polling_task = None
+        self._order_sync_polling_task = None
         self._tx_tracker = PeatioExchangeTransactionTracker(self)
 
         self._user_stream_event_listener_task = None
@@ -192,6 +193,7 @@ cdef class PeatioExchange(ExchangeBase):
         self._stop_network()
         self._order_book_tracker.start()
         self._trading_rules_polling_task = safe_ensure_future(self._trading_rules_polling_loop())
+        self._order_sync_polling_task = safe_ensure_future(self._order_sync_polling_loop())
         self._user_stream_event_listener_task = safe_ensure_future(self._user_stream_event_listener())
         if self._trading_required:
             self._user_stream_tracker_task = safe_ensure_future(self._user_stream_tracker.start())
@@ -211,6 +213,9 @@ cdef class PeatioExchange(ExchangeBase):
         if self._user_stream_tracker_task is not None:
             self._user_stream_tracker_task.cancel()
             self._user_stream_tracker_task = None
+        if self._order_sync_polling_task is not None:
+            self._order_sync_polling_task.cancel()
+            self._order_sync_polling_task = None
 
     async def stop_network(self):
         self._stop_network()
@@ -615,6 +620,17 @@ cdef class PeatioExchange(ExchangeBase):
                                                       "Check API key and network connection.")
                 await asyncio.sleep(0.5)
 
+    async def _order_sync_polling_loop(self):
+        while True:
+            try:
+                await self.sync_orders(depth=0)
+            except Exception:
+                self.logger().network("Unexpected error while sync orders.",
+                                      exc_info=True,
+                                      app_warning_msg="Could not fetch orders from Peatio. "
+                                                      "Check API key and network connection.")
+            await asyncio.sleep(10)
+
     async def _trading_rules_polling_loop(self):
         while True:
             try:
@@ -733,11 +749,10 @@ cdef class PeatioExchange(ExchangeBase):
             raise e
         return exchange_order
 
-    async def sync_orders(self, trading_pair: str, depth: int = 3):
+    async def sync_orders(self, trading_pair: str = None, depth: int = 3):
         self.logger().info(f"start sync orders for market {trading_pair}")
         try:
             path_url = "/market/orders"
-
             wait_orders = await self._api_request(
                 "get",
                 path_url=path_url,
@@ -754,6 +769,7 @@ cdef class PeatioExchange(ExchangeBase):
 
             known_order_ids = set(map(lambda x: x.exchange_order_id, self.in_flight_orders.values()))
             for order_id in set(map(lambda x: str(x['id']), wait_orders + pending_orders)).difference(known_order_ids):
+                self.logger().info(f"cancel {order_id} order")
                 cancel_path_url = f"/market/orders/{order_id}/cancel"
                 response = await self._api_request("post", path_url=cancel_path_url, is_auth_required=True)
         except Exception:

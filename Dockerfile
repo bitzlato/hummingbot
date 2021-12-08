@@ -70,6 +70,7 @@ LABEL maintainer="CoinAlpha, Inc. <dev@coinalpha.com>"
 ARG BRANCH=""
 ARG COMMIT=""
 ARG BUILD_DATE=""
+ARG WEBUI_PORT=7777
 LABEL branch=${BRANCH}
 LABEL commit=${COMMIT}
 LABEL date=${BUILD_DATE}
@@ -85,6 +86,8 @@ ENV WALLET=${WALLET}
 ENV CONFIG_PASSWORD=${CONFIG_PASSWORD}
 
 ENV INSTALLATION_TYPE=docker
+
+EXPOSE ${WEBUI_PORT}
 
 # Add hummingbot user
 RUN useradd -m -s /bin/bash hummingbot && \
