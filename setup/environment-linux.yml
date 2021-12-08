@@ -217,4 +217,6 @@ dependencies:
     - python-markdown-math==0.6
     - git+https://github.com/CoinAlpha/python-signalr-client.git
     - https://hummingbot-python.s3-us-west-2.amazonaws.com/hummingsim-20210806-cp38-cp38-linux_x86_64.whl
+    - flask==2.0.2
+    - turbo-flask==0.8.0
 prefix: /home/paul/anaconda3/envs/hummingbot
