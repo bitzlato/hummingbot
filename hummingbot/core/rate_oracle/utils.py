@@ -14,8 +14,8 @@ def find_rate(prices: Dict[str, Decimal], pair: str) -> Decimal:
     :param pair: The trading pair
     '''
     base, quote = pair.split("-")
-    base = base.upper().replace("ERC20", "").replace("BEP20", "").replace("HRC20", "")
-    quote = quote.upper().replace("ERC20", "").replace("BEP20", "").replace("HRC20", "")
+    base = base.upper().replace("ERC20", "").replace("BEP20", "").replace("HRC20", "").replace("PLGN", "")
+    quote = quote.upper().replace("ERC20", "").replace("BEP20", "").replace("HRC20", "").replace("PLGN", "")
     if f"{base}-{quote}" in prices:
         return prices[f"{base}-{quote}"]
     if base == quote:
