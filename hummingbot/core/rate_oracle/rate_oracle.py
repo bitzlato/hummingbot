@@ -33,6 +33,7 @@ class RateOracleSource(Enum):
     kucoin = 2
     ascend_ex = 3
     price_monolithos = 4
+    whitebit = 5
 
 
 class RateOracle(NetworkBase):
@@ -51,6 +52,7 @@ class RateOracle(NetworkBase):
     _shared_client: Optional[aiohttp.ClientSession] = None
     _cgecko_supported_vs_tokens: List[str] = []
 
+    whitebit_price_url = "https://whitebit.com/api/v1/public/tickers"
     price_monolithos_url = "https://price.monolithos.pro/v1/setzer/price/list"
     binance_price_url = "https://api.binance.com/api/v3/ticker/bookTicker"
     binance_us_price_url = "https://api.binance.us/api/v3/ticker/bookTicker"
@@ -185,6 +187,8 @@ class RateOracle(NetworkBase):
             return await cls.get_ascend_ex_prices()
         elif cls.source == RateOracleSource.price_monolithos:
             return await cls.get_monolithos_prices()
+        elif cls.source == RateOracleSource.whitebit:
+            return await cls.get_whitebit_prices()
         else:
             raise NotImplementedError
 
@@ -235,6 +239,34 @@ class RateOracle(NetworkBase):
                     cls.logger().error("Price expired")
                     raise ValueError("Price expired")
                 results[trading_pair] = Decimal(record["price"])
+        return results
+
+    @classmethod
+    @async_ttl_cache(ttl=1, maxsize=1)
+    async def get_whitebit_prices(cls) -> Dict[str, Decimal]:
+        """
+        Fetches WhiteBit prices from price.monolithos.pro. Prices are added
+        to the prices dictionary.
+        :return A dictionary of trading pairs and prices
+        """
+        results = {}
+        client = await cls._http_client()
+        async with client.request("GET", cls.whitebit_price_url) as resp:
+            records = await resp.json()
+            if "result" not in records:
+                cls.logger().error("Response not exist result")
+                raise ValueError("response not exist result")
+            if "error" in records and records["error"] is not None:
+                cls.logger().error("Unexpected error while retrieving rates from Monolithos. "
+                                   "Check the log file for more info.")
+                raise ValueError("response not exist result")
+
+            for raw_pair, record in records["result"].items():
+                trading_pair = raw_pair.replace("_", "-")
+                if datetime.datetime.now() - datetime.datetime.fromtimestamp(record["at"]) > datetime.timedelta(hours=2):
+                    cls.logger().error("Price expired")
+                    raise ValueError("Price expired")
+                results[trading_pair] = (Decimal(record['ticker']['bid']) + Decimal(record['ticker']['ask'])) / Decimal('2')
         return results
 
     @classmethod
