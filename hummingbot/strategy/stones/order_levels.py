@@ -51,7 +51,7 @@ class OrderLevel:
         return results
 
     def is_at_level_of(self, oracle_price: Decimal, order_price: Decimal, amount: Decimal, is_buy: bool, **kwargs):
-        current_percent = get_percentage_of_first_from_secondary(first=order_price, secondary=oracle_price)
+        current_percent = round(get_percentage_of_first_from_secondary(first=order_price, secondary=oracle_price), 2)
         current_different = (current_percent - Decimal('100'))
 
         if is_buy is True:

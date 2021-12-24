@@ -446,7 +446,10 @@ cdef class StonesStrategy(StrategyBase):
         return result
 
     def check_on_close_order(self, exchange: ExchangeBase, order: LimitOrder):
-        oracle_price = self.get_oracle_price(maker_market=exchange, trading_pair=order.trading_pair)
+        oracle_price = exchange.quantize_order_price(
+            trading_pair=order.trading_pair,
+            price=self.get_oracle_price(maker_market=exchange, trading_pair=order.trading_pair)
+        )
 
         try:
             level = self.map_order_id_to_level[order.client_order_id]
