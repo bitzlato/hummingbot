@@ -262,11 +262,14 @@ class RateOracle(NetworkBase):
                 raise ValueError("response not exist result")
 
             for raw_pair, record in records["result"].items():
-                trading_pair = raw_pair.replace("_", "-")
+                trading_pair = raw_pair.replace("_", "-").upper()
                 if datetime.datetime.now() - datetime.datetime.fromtimestamp(record["at"]) > datetime.timedelta(hours=2):
                     cls.logger().error("Price expired")
                     raise ValueError("Price expired")
                 results[trading_pair] = (Decimal(record['ticker']['bid']) + Decimal(record['ticker']['ask'])) / Decimal('2')
+                if "RUB" in trading_pair:
+                    pair_in_mcr = trading_pair.replace("RUB", "MCR")
+                    results[pair_in_mcr] = results[trading_pair]
         return results
 
     @classmethod
@@ -291,6 +294,9 @@ class RateOracle(NetworkBase):
                         Decimal(record["bidPrice"]) > 0 and Decimal(record["askPrice"]):
                     results[trading_pair] = (Decimal(record["bidPrice"]) + Decimal(record["askPrice"])) / Decimal(
                         "2")
+                    if "RUB" in trading_pair:
+                        pair_in_mcr = trading_pair.replace("RUB", "MCR")
+                        results[pair_in_mcr] = results[trading_pair]
         return results
 
     @classmethod
