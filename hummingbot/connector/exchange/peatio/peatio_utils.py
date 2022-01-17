@@ -14,7 +14,7 @@ from hummingbot.core.event.events import (
 RE_4_LETTERS_QUOTE = re.compile(r"^(\w+)(usdt|husd)$")
 RE_3_LETTERS_QUOTE = re.compile(r"^(\w+)(btc|eth|trx)$")
 RE_2_LETTERS_QUOTE = re.compile(r"^(\w+)(ht)$")
-TOKEN_TYPES = ["erc-20", "bec-20", "hrc-20"]
+TOKEN_TYPES = ["erc-20", "bec-20", "hrc-20", "earc-20", "plgn"]
 
 CENTRALIZED = True
 
