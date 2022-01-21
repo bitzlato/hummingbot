@@ -1062,7 +1062,9 @@ cdef class PeatioExchange(ExchangeBase):
         safe_ensure_future(self.execute_sell(client_order_id, trading_pair, amount, order_type, price))
         return client_order_id
 
-    async def execute_cancel(self, trading_pair: str, client_order_id: str):
+    async def execute_cancel(self, trading_pair: str, client_order_id: str, retry_count: int = 5):
+        if retry_count == 0:
+            return
         try:
             tracked_order = self._in_flight_orders.get(client_order_id)
             if tracked_order is None:
@@ -1077,6 +1079,11 @@ cdef class PeatioExchange(ExchangeBase):
                 exc_info=True,
                 app_warning_msg=f"Failed to cancel the order {client_order_id} on Peatio. "
                                 f"Check API key and network connection."
+            )
+            await self.execute_cancel(
+                trading_pair=trading_pair,
+                client_order_id=client_order_id,
+                retry_count=retry_count - 1
             )
 
         except Exception as e:
