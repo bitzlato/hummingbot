@@ -1077,7 +1077,7 @@ cdef class PeatioExchange(ExchangeBase):
             self.logger().info(f"finish cancel order ({client_order_id}) cancel_id={cancel_id} with response {response}")
         except PeatioAPIError as e:
             order_state = e.error_payload.get("error").get("order-state")
-            self.logger().info(f"failed cancel order ({client_order_id}) cancel_id={cancel_id} with error {e}")
+            self.logger().error(f"failed cancel order ({client_order_id}) cancel_id={cancel_id} with error {e}")
             self.logger().network(
                 f"Failed to cancel order {client_order_id}: {str(e)}",
                 exc_info=True,
@@ -1095,6 +1095,7 @@ cdef class PeatioExchange(ExchangeBase):
                 )
 
         except Exception as e:
+            self.logger().error(f"failed cancel order ({client_order_id}) cancel_id={cancel_id} with error {e}")
             self.logger().network(
                 f"Failed to cancel order {client_order_id}: {str(e)}",
                 exc_info=True,
