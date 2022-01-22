@@ -1,6 +1,8 @@
 import aiohttp
 import asyncio
 from decimal import Decimal
+
+import uuid
 from libc.stdint cimport int64_t
 import logging
 import time
@@ -1063,28 +1065,34 @@ cdef class PeatioExchange(ExchangeBase):
         return client_order_id
 
     async def execute_cancel(self, trading_pair: str, client_order_id: str, retry_count: int = 5):
-        if retry_count == 0:
-            return
+        cancel_id = uuid.uuid4()
+        self.logger().info(f"start cancel order ({client_order_id}) cancel_id={cancel_id}")
         try:
             tracked_order = self._in_flight_orders.get(client_order_id)
             if tracked_order is None:
                 raise ValueError(f"Failed to cancel order - {client_order_id}. Order not found.")
+
             path_url = f"/market/orders/{tracked_order.exchange_order_id}/cancel"
             response = await self._api_request("post", path_url=path_url, is_auth_required=True)
-
+            self.logger().info(f"finish cancel order ({client_order_id}) cancel_id={cancel_id} with response {response}")
         except PeatioAPIError as e:
             order_state = e.error_payload.get("error").get("order-state")
+            self.logger().info(f"failed cancel order ({client_order_id}) cancel_id={cancel_id} with error {e}")
             self.logger().network(
                 f"Failed to cancel order {client_order_id}: {str(e)}",
                 exc_info=True,
                 app_warning_msg=f"Failed to cancel the order {client_order_id} on Peatio. "
                                 f"Check API key and network connection."
             )
-            await self.execute_cancel(
-                trading_pair=trading_pair,
-                client_order_id=client_order_id,
-                retry_count=retry_count - 1
-            )
+            if retry_count < 1:
+                await self.cancel_all(timeout_seconds=0, trading_pair=trading_pair)
+                return
+            else:
+                await self.execute_cancel(
+                    trading_pair=trading_pair,
+                    client_order_id=client_order_id,
+                    retry_count=retry_count - 1
+                )
 
         except Exception as e:
             self.logger().network(
@@ -1117,6 +1125,7 @@ cdef class PeatioExchange(ExchangeBase):
             cancel_all_results = await self._api_request(
                 "post",
                 path_url=path_url,
+                data=data,
                 is_auth_required=True
             )
             self.logger().info(f"cancel_all_results: {cancel_all_results}")
