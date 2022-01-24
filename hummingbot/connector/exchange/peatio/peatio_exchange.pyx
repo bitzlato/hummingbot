@@ -759,12 +759,7 @@ cdef class PeatioExchange(ExchangeBase):
             raise e
         except Exception as e:
             self.logger().error(f"Error place order with params {params}: {e}", exc_info=True)
-            await self.sync_orders(trading_pair=trading_pair, depth=3)
-            await self.cancel_all(
-                timeout_seconds=3,
-                trading_pair=trading_pair,
-                trade_type=TradeType.BUY if is_buy else TradeType.SELL
-            )
+            await self.sync_orders(trading_pair=trading_pair, depth=5)
             raise e
         return exchange_order
 
@@ -797,6 +792,10 @@ cdef class PeatioExchange(ExchangeBase):
                 await self.sync_orders(trading_pair=trading_pair, depth=depth - 1)
             else:
                 self.logger().error(f"failed to cancel orders for market = {trading_pair}", exc_info=True)
+                await self.cancel_all(
+                    timeout_seconds=3,
+                    trading_pair=trading_pair,
+                )
 
     async def batch_place_order(self, orders_data: List[OrderRequest]):
         path_url = "/market/orders/batch"
