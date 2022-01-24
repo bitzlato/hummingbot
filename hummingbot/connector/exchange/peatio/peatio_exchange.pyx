@@ -3,6 +3,8 @@ import asyncio
 from decimal import Decimal
 
 import uuid
+
+from aiohttp import ClientTimeout
 from libc.stdint cimport int64_t
 import logging
 import time
@@ -267,7 +269,7 @@ cdef class PeatioExchange(ExchangeBase):
         client = await self._http_client()
         if is_auth_required:
             headers = self._peatio_auth.add_auth_data(headers=headers)
-
+        timeout = ClientTimeout(connect=3.0, total=self.API_CALL_TIMEOUT)
         try:
             if not data:
                 response = await client.request(
@@ -275,7 +277,7 @@ cdef class PeatioExchange(ExchangeBase):
                     url=url,
                     headers=headers,
                     params=params,
-                    timeout=self.API_CALL_TIMEOUT
+                    timeout=timeout
                 )
             else:
                 response = await client.request(
@@ -284,7 +286,7 @@ cdef class PeatioExchange(ExchangeBase):
                     headers=headers,
                     params=params,
                     data=ujson.dumps(data),
-                    timeout=self.API_CALL_TIMEOUT
+                    timeout=timeout
                 )
         except Exception as e:
             self._shared_client = None
@@ -1066,20 +1068,21 @@ cdef class PeatioExchange(ExchangeBase):
 
     async def execute_cancel(self, trading_pair: str, client_order_id: str, retry_count: int = 5):
         cancel_id = uuid.uuid4()
-        self.logger().info(f"start cancel order ({client_order_id}) cancel_id={cancel_id}")
+        self.logger().info(f"start cancel order ({client_order_id}) [cancel_id={cancel_id}]")
         try:
             tracked_order = self._in_flight_orders.get(client_order_id)
             if tracked_order is None:
-                raise ValueError(f"Failed to cancel order - {client_order_id}. Order not found.")
+                self.logger().warning(f"Order - {client_order_id} not found (already canceled) [cancel_id={cancel_id}]")
+                # raise ValueError(f"Failed to cancel order - {client_order_id}. Order not found.")
+                return
 
             path_url = f"/market/orders/{tracked_order.exchange_order_id}/cancel"
             response = await self._api_request("post", path_url=path_url, is_auth_required=True)
-            self.logger().info(f"finish cancel order ({client_order_id}) cancel_id={cancel_id} with response {response}")
+            self.logger().info(f"finish cancel order ({client_order_id}) [cancel_id={cancel_id}] with response {response}")
         except PeatioAPIError as e:
             order_state = e.error_payload.get("error").get("order-state")
-            self.logger().error(f"failed cancel order ({client_order_id}) cancel_id={cancel_id} with error {e}")
             self.logger().network(
-                f"Failed to cancel order {client_order_id}: {str(e)}",
+                f"Failed to cancel order {client_order_id} [cancel_id={cancel_id}]: {str(e)}",
                 exc_info=True,
                 app_warning_msg=f"Failed to cancel the order {client_order_id} on Peatio. "
                                 f"Check API key and network connection."
@@ -1095,9 +1098,8 @@ cdef class PeatioExchange(ExchangeBase):
                 )
 
         except Exception as e:
-            self.logger().error(f"failed cancel order ({client_order_id}) cancel_id={cancel_id} with error {e}")
             self.logger().network(
-                f"Failed to cancel order {client_order_id}: {str(e)}",
+                f"Failed to cancel order {client_order_id} [cancel_id={cancel_id}]: {str(e)}",
                 exc_info=True,
                 app_warning_msg=f"Failed to cancel the order {client_order_id} on Peatio. "
                                 f"Check API key and network connection."
