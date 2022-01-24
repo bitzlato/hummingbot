@@ -298,8 +298,8 @@ cdef class PeatioExchange(ExchangeBase):
 
         try:
             data = await response.json()
-        except Exception:
-            raise IOError(f"Error parsing data from {url}.")
+        except Exception as e:
+            raise IOError(f"Error parsing data from {url}. {e}")
 
         return data
 
@@ -756,6 +756,11 @@ cdef class PeatioExchange(ExchangeBase):
         except Exception as e:
             self.logger().error(f"Error place order with params {params}: {e}", exc_info=True)
             await self.sync_orders(trading_pair=trading_pair, depth=3)
+            await self.cancel_all(
+                timeout_seconds=3,
+                trading_pair=trading_pair,
+                trade_type=TradeType.BUY if is_buy else TradeType.SELL
+            )
             raise e
         return exchange_order
 
