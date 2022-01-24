@@ -299,7 +299,8 @@ cdef class PeatioExchange(ExchangeBase):
         try:
             data = await response.json()
         except Exception as e:
-            raise IOError(f"Error parsing data from {url}. {e}")
+            raw_content = await response.read()
+            raise IOError(f"Error parsing data from {url} response={raw_content} status={response.status} with error {str(e)}")
 
         return data
 
