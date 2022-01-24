@@ -754,7 +754,7 @@ cdef class PeatioExchange(ExchangeBase):
                 is_auth_required=True
             )
         except Exception as e:
-            self.logger().error(f"Error place order with params {params}", exc_info=True)
+            self.logger().error(f"Error place order with params {params}: {e}", exc_info=True)
             await self.sync_orders(trading_pair=trading_pair, depth=3)
             raise e
         return exchange_order
@@ -1079,6 +1079,11 @@ cdef class PeatioExchange(ExchangeBase):
             path_url = f"/market/orders/{tracked_order.exchange_order_id}/cancel"
             response = await self._api_request("post", path_url=path_url, is_auth_required=True)
             self.logger().info(f"finish cancel order ({client_order_id}) [cancel_id={cancel_id}] with response {response}")
+            await self.update_tracked_order(
+                order_obj=response,
+                tracked_order=tracked_order,
+                exch_order_id=tracked_order.exchange_order_id
+            )
         except PeatioAPIError as e:
             order_state = e.error_payload.get("error").get("order-state")
             self.logger().network(
@@ -1087,15 +1092,15 @@ cdef class PeatioExchange(ExchangeBase):
                 app_warning_msg=f"Failed to cancel the order {client_order_id} on Peatio. "
                                 f"Check API key and network connection."
             )
-            if retry_count < 1:
-                await self.cancel_all(timeout_seconds=0, trading_pair=trading_pair)
-                return
-            else:
-                await self.execute_cancel(
-                    trading_pair=trading_pair,
-                    client_order_id=client_order_id,
-                    retry_count=retry_count - 1
-                )
+            # if retry_count < 1:
+            #     await self.cancel_all(timeout_seconds=0, trading_pair=trading_pair)
+            #     return
+            # else:
+            #     await self.execute_cancel(
+            #         trading_pair=trading_pair,
+            #         client_order_id=client_order_id,
+            #         retry_count=retry_count - 1
+            #     )
 
         except Exception as e:
             self.logger().network(
