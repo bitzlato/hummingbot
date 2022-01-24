@@ -269,7 +269,7 @@ cdef class PeatioExchange(ExchangeBase):
         client = await self._http_client()
         if is_auth_required:
             headers = self._peatio_auth.add_auth_data(headers=headers)
-        timeout = ClientTimeout(connect=3.0, total=self.API_CALL_TIMEOUT)
+        timeout = ClientTimeout(connect=1.0, total=self.API_CALL_TIMEOUT)
         try:
             if not data:
                 response = await client.request(
