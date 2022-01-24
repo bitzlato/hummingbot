@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import uuid
 
-from aiohttp import ClientTimeout
+from aiohttp import ClientTimeout, ServerTimeoutError
 from libc.stdint cimport int64_t
 import logging
 import time
@@ -754,6 +754,9 @@ cdef class PeatioExchange(ExchangeBase):
                 data=params,
                 is_auth_required=True
             )
+        except ServerTimeoutError as e:
+            self.logger().network(f"failed place order with params {params} with error ServerTimeoutError: {e}", exc_info=True)
+            raise e
         except Exception as e:
             self.logger().error(f"Error place order with params {params}: {e}", exc_info=True)
             await self.sync_orders(trading_pair=trading_pair, depth=3)
