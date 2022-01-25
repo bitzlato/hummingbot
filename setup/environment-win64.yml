@@ -193,4 +193,5 @@ dependencies:
     - https://hummingbot-python.s3.us-west-2.amazonaws.com/hummingsim-20210607-cp38-cp38-win_amd64.whl
     - flask==2.0.2
     - turbo-flask==0.8.0
+    - bugsnag==4.1.1
 prefix: C:\Users\marti\Anaconda3\envs\hummingbot

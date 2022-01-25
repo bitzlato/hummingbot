@@ -372,6 +372,12 @@ main_config_map = {
                   type_str="int",
                   default=7777,
                   required_if=lambda: False),
+    "bugsnag_api_key":
+        ConfigVar(key="bugsnag_api_key",
+                  prompt="bugsnag api key? >>> ",
+                  type_str="str",
+                  default=None,
+                  required_if=lambda: False),
 }
 
 global_config_map = {**key_config_map, **main_config_map}

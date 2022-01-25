@@ -293,6 +293,8 @@ cdef class PeatioExchange(ExchangeBase):
             raise e
 
         if response.status not in [200, 201]:
+            if response.status in [422, ]:
+                raise PeatioAPIError(await response.json())
             raw_text = await response.text()
             raise IOError(f"Error fetching data from {url}. HTTP status is {response.status} with response {raw_text}. Nonce={headers.get('X-Auth-Nonce')}")
 
@@ -755,7 +757,16 @@ cdef class PeatioExchange(ExchangeBase):
                 is_auth_required=True
             )
         except ServerTimeoutError as e:
-            self.logger().network(f"failed place order with params {params} with error ServerTimeoutError: {e}", exc_info=True)
+            self.logger().network(
+                f"failed place order with params {params} with error ServerTimeoutError: {e}",
+                exc_info=True
+            )
+            raise e
+        except PeatioAPIError as e:
+            self.logger().network(
+                f"failed place order with params {params} with error PeatioApiError: {e}",
+                exc_info=True
+            )
             raise e
         except Exception as e:
             self.logger().error(f"Error place order with params {params}: {e}", exc_info=True)

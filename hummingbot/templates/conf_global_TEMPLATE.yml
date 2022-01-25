@@ -156,6 +156,8 @@ telegram_chat_id: null
 webui_enabled: false
 webui_port: 7777
 
+bugsnag_api_key: "djabdjawd-ajfkajsdka-ajndwja"
+
 # Error log sharing
 send_error_logs: null
 

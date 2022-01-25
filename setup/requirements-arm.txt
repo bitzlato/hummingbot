@@ -34,3 +34,4 @@ rsa==4.7.2
 simplejson==3.16.0
 flask==2.0.2
 turbo-flask==0.8.0
+bugsnag==4.1.1

@@ -160,7 +160,8 @@ def main():
         "ujson",
         "yarl",
         "flask==2.0.2",
-        "turbo-flask==0.8.0"
+        "turbo-flask==0.8.0",
+        "bugsnag==4.1.1"
     ]
 
     cython_kwargs = {
