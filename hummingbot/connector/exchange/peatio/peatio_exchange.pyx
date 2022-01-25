@@ -1,3 +1,5 @@
+from asyncio import CancelledError
+
 import aiohttp
 import asyncio
 from decimal import Decimal
@@ -757,8 +759,14 @@ cdef class PeatioExchange(ExchangeBase):
                 is_auth_required=True
             )
         except ServerTimeoutError as e:
-            self.logger().network(
+            self.logger().error(
                 f"failed place order with params {params} with error ServerTimeoutError: {e}",
+                exc_info=True
+            )
+            raise e
+        except CancelledError as e:
+            self.logger().network(
+                f"failed place order with params {params} with error CancelledError: {e}",
                 exc_info=True
             )
             raise e
@@ -1105,7 +1113,7 @@ cdef class PeatioExchange(ExchangeBase):
             )
         except PeatioAPIError as e:
             order_state = e.error_payload.get("error").get("order-state")
-            self.logger().network(
+            self.logger().error(
                 f"Failed to cancel order {client_order_id} [cancel_id={cancel_id}]: {str(e)}",
                 exc_info=True,
                 app_warning_msg=f"Failed to cancel the order {client_order_id} on Peatio. "
@@ -1122,7 +1130,7 @@ cdef class PeatioExchange(ExchangeBase):
             #     )
 
         except Exception as e:
-            self.logger().network(
+            self.logger().error(
                 f"Failed to cancel order {client_order_id} [cancel_id={cancel_id}]: {str(e)}",
                 exc_info=True,
                 app_warning_msg=f"Failed to cancel the order {client_order_id} on Peatio. "
