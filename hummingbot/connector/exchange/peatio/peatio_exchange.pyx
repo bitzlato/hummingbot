@@ -295,7 +295,7 @@ cdef class PeatioExchange(ExchangeBase):
             raise e
 
         if response.status not in [200, 201]:
-            if response.status in [422, ]:
+            if response.status in [422, 404]:
                 raise PeatioAPIError(await response.json())
             raw_text = await response.text()
             raise IOError(f"Error fetching data from {url}. HTTP status is {response.status} with response {raw_text}. Nonce={headers.get('X-Auth-Nonce')}")
@@ -445,6 +445,8 @@ cdef class PeatioExchange(ExchangeBase):
 
     async def update_tracked_order(self, order_obj: dict, tracked_order: PeatioInFlightOrder, exch_order_id):
         order_state = order_obj["state"]
+        tracked_order.exchange_order_id = exch_order_id
+
         # possible order states are "wait", "done", "cancel", "rejected", "reject"
         self.logger().info(f"update_tracked_order --- 0; order_state: {order_state}, order_id: {tracked_order.client_order_id}, exchange_order_id: {exch_order_id}")
         if order_state not in ["wait", "done", "cancel", "rejected", "reject"]:
@@ -575,22 +577,20 @@ cdef class PeatioExchange(ExchangeBase):
         if current_tick > last_tick and len(self._in_flight_orders) > 0:
             tracked_orders = list(self._in_flight_orders.values())
             for tracked_order in tracked_orders:
-                exchange_order_id = await tracked_order.get_exchange_order_id()
                 try:
-                    order_update = await self.get_order_status(exchange_order_id)
+                    order_update = await self.get_order_status(tracked_order.client_order_id)
                 except PeatioAPIError as e:
                     errors = e.error_payload.get("errors")
-                    # self.c_stop_tracking_order(tracked_order.client_order_id)
-                    self.logger().info(
-                        f"Fail to retrieve order update for {tracked_order.client_order_id} - {errors}")
-                    # self.c_trigger_event(
-                    #     self.MARKET_ORDER_FAILURE_EVENT_TAG,
-                    #     MarketOrderFailureEvent(
-                    #         self._current_timestamp,
-                    #         tracked_order.client_order_id,
-                    #         tracked_order.order_type
-                    #     )
-                    # )
+                    if "record.not_found" in errors:
+                        self.c_stop_tracking_order(tracked_order.client_order_id)
+                        self.c_trigger_event(self.MARKET_ORDER_FAILURE_EVENT_TAG,
+                                             MarketOrderFailureEvent(
+                                                 self._current_timestamp,
+                                                 tracked_order.client_order_id,
+                                                 tracked_order.order_type
+                                             ))
+                    else:
+                        self.logger().error(f"Fail to retrieve order update for {tracked_order.client_order_id} - {errors}")
                     continue
 
                 if order_update is None:
@@ -601,7 +601,7 @@ cdef class PeatioExchange(ExchangeBase):
                                         f"The order has either been filled or canceled."
                     )
                     continue
-
+                exchange_order_id = str(order_update['id'])
                 await self.update_tracked_order(
                     order_obj=order_update,
                     tracked_order=tracked_order,
@@ -697,9 +697,10 @@ cdef class PeatioExchange(ExchangeBase):
 
                     if channel == PEATIO_ORDER_UPDATE_TOPIC:
                         self.logger().info(data)
+                        self.logger().info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
                         exchange_order_id = str(data["id"])
 
-                        tracked_order = self.get_in_flight_orders_by_exchange_id(exchange_order_id)
+                        tracked_order = tracked_order = self._in_flight_orders.get(data["uuid"])
                         if tracked_order is None:
                             continue
 
@@ -733,6 +734,7 @@ cdef class PeatioExchange(ExchangeBase):
         return [OrderType.LIMIT]
 
     async def place_order(self,
+                          client_order_id: str,
                           trading_pair: str,
                           amount: Decimal,
                           is_buy: bool,
@@ -748,38 +750,41 @@ cdef class PeatioExchange(ExchangeBase):
             "volume": f"{amount:f}",
             "ord_type": order_type_str,
             "price": f"{price:f}",
+            "uuid": client_order_id
         }
 
         try:
-            exchange_order = await self._api_request(
-                "post",
-                path_url=path_url,
-                data=params,
-                is_auth_required=True
-            )
-        except ServerTimeoutError as e:
-            self.logger().error(
-                f"failed place order with params {params} with error ServerTimeoutError: {e}",
-                exc_info=True
-            )
-            raise e
+            self.logger().info(f"put new order !!!!!")
+            self._user_stream_tracker.taker_order_stream.put_nowait(params)
+            # exchange_order = await self._api_request(
+            #     "post",
+            #     path_url=path_url,
+            #     data=params,
+            #     is_auth_required=True
+            # )
+        # except ServerTimeoutError as e:
+        #     self.logger().error(
+        #         f"failed place order with params {params} with error ServerTimeoutError: {e}",
+        #         exc_info=True
+        #     )
+        #     raise e
         except CancelledError as e:
             self.logger().network(
                 f"failed place order with params {params} with error CancelledError: {e}",
                 exc_info=True
             )
             raise e
-        except PeatioAPIError as e:
-            self.logger().network(
-                f"failed place order with params {params} with error PeatioApiError: {e}",
-                exc_info=True
-            )
-            raise e
+        # except PeatioAPIError as e:
+        #     self.logger().network(
+        #         f"failed place order with params {params} with error PeatioApiError: {e}",
+        #         exc_info=True
+        #     )
+        #     raise e
         except Exception as e:
             self.logger().error(f"Error place order with params {params}: {e}", exc_info=True)
             await self.sync_orders(trading_pair=trading_pair, depth=5)
             raise e
-        return exchange_order
+        return params
 
     async def sync_orders(self, trading_pair: str = None, depth: int = 3):
         self.logger().info(f"start sync orders for market {trading_pair}")
@@ -800,8 +805,8 @@ cdef class PeatioExchange(ExchangeBase):
                 is_auth_required=True
             )
 
-            known_order_ids = set(map(lambda x: x.exchange_order_id, self.in_flight_orders.values()))
-            for order_id in set(map(lambda x: str(x['id']), wait_orders + pending_orders)).difference(known_order_ids):
+            known_order_ids = set(map(lambda x: x.client_order_id, self.in_flight_orders.values()))
+            for order_id in set(map(lambda x: str(x['uuid']), wait_orders + pending_orders)).difference(known_order_ids):
                 self.logger().info(f"cancel {order_id} order")
                 cancel_path_url = f"/market/orders/{order_id}/cancel"
                 response = await self._api_request("post", path_url=cancel_path_url, is_auth_required=True)
@@ -850,6 +855,7 @@ cdef class PeatioExchange(ExchangeBase):
                     "volume": f"{decimal_amount:f}",
                     "ord_type": str(order_type.name).lower(),
                     "price": f"{decimal_price:f}",
+                    "uuid": str(uuid.uuid4())
                 }
             )
 
@@ -864,10 +870,8 @@ cdef class PeatioExchange(ExchangeBase):
             self.logger().info(f"exchange_orders: {exchange_orders}, data: {data}")
             for req, exchange_order in map_orders_data_to_results(exchange_orders).items():
                 self.c_start_tracking_order(
-                    client_order_id=str(req.client_order_id),
-                    exchange_order_id=str(exchange_order["id"]),
+                    client_order_id=exchange_order['uuid'],
                     trading_pair=trading_pair,
-                    state=str(exchange_order["state"]),
                     order_type=order_type,
                     trade_type=TradeType.BUY if is_buy else TradeType.SELL,
                     price=Decimal(exchange_order['price']),
@@ -924,11 +928,8 @@ cdef class PeatioExchange(ExchangeBase):
         cdef:
             TradingRule trading_rule = self._trading_rules[trading_pair]
             object current_price = self.c_get_price(trading_pair, False)
-            object quote_amount
             object decimal_amount
             object decimal_price
-            str exchange_order_id
-            object tracked_order
 
         if order_type is OrderType.LIMIT:
             decimal_price = self.c_quantize_order_price(trading_pair, price)
@@ -957,12 +958,10 @@ cdef class PeatioExchange(ExchangeBase):
             trading_pair=trading_pair, amount=amount, order_type=order_type, price=price
         )
         try:
-            exchange_order = await self.place_order(trading_pair, decimal_amount, is_buy, order_type, decimal_price)
+            exchange_order = await self.place_order(client_order_id, trading_pair, decimal_amount, is_buy, order_type, decimal_price)
             self.c_start_tracking_order(
                 client_order_id=str(client_order_id),
-                exchange_order_id=str(exchange_order["id"]),
                 trading_pair=trading_pair,
-                state=str(exchange_order["state"]),
                 order_type=order_type,
                 trade_type=TradeType.BUY,
                 price=decimal_price,
@@ -971,7 +970,7 @@ cdef class PeatioExchange(ExchangeBase):
             tracked_order = self._in_flight_orders.get(client_order_id)
             if tracked_order is not None:
                 self.logger().info(
-                    f"Created {order_type} buy order {client_order_id} ({exchange_order['id']}) for {decimal_amount} {trading_pair} with status {exchange_order['state']}.")
+                    f"Created {order_type} buy order {client_order_id} for {decimal_amount} {trading_pair}.")
             self.c_trigger_event(self.MARKET_BUY_ORDER_CREATED_EVENT_TAG,
                                  BuyOrderCreatedEvent(
                                      timestamp=self._current_timestamp,
@@ -980,7 +979,6 @@ cdef class PeatioExchange(ExchangeBase):
                                      amount=decimal_amount,
                                      price=decimal_price,
                                      order_id=client_order_id,
-                                     exchange_order_id=exchange_order["id"]
                                  ))
         except asyncio.CancelledError:
             raise
@@ -1015,8 +1013,6 @@ cdef class PeatioExchange(ExchangeBase):
             TradingRule trading_rule = self._trading_rules[trading_pair]
             object decimal_amount
             object decimal_price
-            str exchange_order_id
-            object tracked_order
             object current_price = self.c_get_price(trading_pair, False)
 
         decimal_price = self.c_quantize_order_price(trading_pair, price)
@@ -1042,12 +1038,10 @@ cdef class PeatioExchange(ExchangeBase):
             trading_pair=trading_pair, amount=amount, order_type=order_type, price=price
         )
         try:
-            exchange_order = await self.place_order(trading_pair, decimal_amount, False, order_type, decimal_price)
+            exchange_order = await self.place_order(client_order_id, trading_pair, decimal_amount, False, order_type, decimal_price)
             self.c_start_tracking_order(
                 client_order_id=client_order_id,
-                exchange_order_id=str(exchange_order["id"]),
                 trading_pair=trading_pair,
-                state=str(exchange_order["state"]),
                 order_type=order_type,
                 trade_type=TradeType.SELL,
                 price=decimal_price,
@@ -1055,7 +1049,7 @@ cdef class PeatioExchange(ExchangeBase):
             )
             tracked_order = self._in_flight_orders.get(client_order_id)
             if tracked_order is not None:
-                self.logger().info(f"Created {order_type} sell order {client_order_id} ({exchange_order['id']}) for {decimal_amount} {trading_pair} with status {exchange_order['state']}.")
+                self.logger().info(f"Created {order_type} sell order {client_order_id} for {decimal_amount} {trading_pair}.")
             self.c_trigger_event(self.MARKET_SELL_ORDER_CREATED_EVENT_TAG,
                                  SellOrderCreatedEvent(
                                      timestamp=self._current_timestamp,
@@ -1064,7 +1058,7 @@ cdef class PeatioExchange(ExchangeBase):
                                      amount=decimal_amount,
                                      price=decimal_price,
                                      order_id=client_order_id,
-                                     exchange_order_id=exchange_order["id"]
+                                     exchange_order_id=None
                                  ))
         except asyncio.CancelledError:
             raise
@@ -1101,7 +1095,7 @@ cdef class PeatioExchange(ExchangeBase):
                 self.logger().warning(f"Order - {client_order_id} not found (already canceled) [cancel_id={cancel_id}]")
                 return
 
-            path_url = f"/market/orders/{tracked_order.exchange_order_id}/cancel"
+            path_url = f"/market/orders/{tracked_order.client_order_id}/cancel"
             response = await self._api_request("post", path_url=path_url, is_auth_required=True)
             self.logger().info(f"finish cancel order ({client_order_id}) [cancel_id={cancel_id}] with response {response}")
             await self.update_tracked_order(
@@ -1110,6 +1104,16 @@ cdef class PeatioExchange(ExchangeBase):
                 exch_order_id=tracked_order.exchange_order_id
             )
         except PeatioAPIError as e:
+            errors = e.error_payload.get("errors")
+            if "record.not_found" in errors:
+                self.c_stop_tracking_order(tracked_order.client_order_id)
+                self.c_trigger_event(self.MARKET_ORDER_FAILURE_EVENT_TAG,
+                                     MarketOrderFailureEvent(
+                                         self._current_timestamp,
+                                         client_order_id,
+                                         tracked_order.order_type
+                                     ))
+
             self.logger().error(
                 f"Failed to cancel order {client_order_id} [cancel_id={cancel_id}]: {str(e)}",
                 exc_info=True,
@@ -1140,9 +1144,8 @@ cdef class PeatioExchange(ExchangeBase):
             open_orders = filter(lambda x: x.trade_type == kwargs.get('trade_type'), open_orders)
             data['side'] = "buy" if kwargs.get('trade_type') is TradeType.BUY else "sell"
         open_orders = list(open_orders)
-        cancel_order_ids = list(map(lambda x: x.exchange_order_id, open_orders))
 
-        self.logger().info(f"cancel_order_ids {cancel_order_ids} orders: {open_orders}")
+        self.logger().debug(f"cancel orders: {open_orders}")
         path_url = "/market/orders/cancel"
         try:
             cancel_all_results = await self._api_request(
@@ -1159,7 +1162,7 @@ cdef class PeatioExchange(ExchangeBase):
             return cancellation_results
         except Exception as e:
             self.logger().network(
-                f"Failed to cancel all orders: {cancel_order_ids}",
+                "Failed to cancel all orders",
                 exc_info=True,
                 app_warning_msg=f"Failed to cancel all orders on Peatio. Check API key and network connection."
             )
@@ -1179,22 +1182,20 @@ cdef class PeatioExchange(ExchangeBase):
 
     cdef c_start_tracking_order(self,
                                 str client_order_id,
-                                str exchange_order_id,
                                 str trading_pair,
-                                str state,
                                 object order_type,
                                 object trade_type,
                                 object price,
                                 object amount,):
         self._in_flight_orders[client_order_id] = PeatioInFlightOrder(
             client_order_id=str(client_order_id),
-            exchange_order_id=str(exchange_order_id),
             trading_pair=str(trading_pair),
             order_type=order_type,
             trade_type=trade_type,
             price=price,
             amount=amount,
-            initial_state=state
+            exchange_order_id=None,
+            initial_state="pending"
         )
 
     cdef c_stop_tracking_order(self, str order_id):

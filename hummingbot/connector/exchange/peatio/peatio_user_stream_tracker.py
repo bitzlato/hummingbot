@@ -4,7 +4,7 @@ import asyncio
 import logging
 from typing import Optional, List
 
-from hummingbot.connector.exchange.peatio.peatio_api_user_stream_data_source import PeatioAPIUserStreamDataSource
+from hummingbot.connector.exchange.peatio.peatio_api_user_stream_data_source import PeatioAPIUserStreamDataSourceNew
 from hummingbot.connector.exchange.peatio.peatio_auth import PeatioAuth
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
 from hummingbot.logger import HummingbotLogger
@@ -31,12 +31,18 @@ class PeatioUserStreamTracker(UserStreamTracker):
         self._ev_loop: asyncio.events.AbstractEventLoop = asyncio.get_event_loop()
         self._data_source: Optional[UserStreamTrackerDataSource] = None
         self._user_stream_tracking_task: Optional[asyncio.Task] = None
+        self._user_input_stream: asyncio.Queue = asyncio.Queue()
 
     @property
-    def data_source(self) -> UserStreamTrackerDataSource:
+    def data_source(self) -> PeatioAPIUserStreamDataSourceNew:
         if not self._data_source:
-            self._data_source = PeatioAPIUserStreamDataSource(peatio_auth=self._peatio_auth)
+            # self._data_source = PeatioAPIUserStreamDataSource(peatio_auth=self._peatio_auth)
+            self._data_source = PeatioAPIUserStreamDataSourceNew(peatio_auth=self._peatio_auth)
         return self._data_source
+
+    @property
+    def taker_order_stream(self):
+        return self._user_input_stream
 
     @property
     def exchange_name(self) -> str:
@@ -44,6 +50,7 @@ class PeatioUserStreamTracker(UserStreamTracker):
 
     async def start(self):
         self._user_stream_tracking_task = asyncio.ensure_future(
-            self.data_source.listen_for_user_stream(self._ev_loop, self._user_stream)
+            self.data_source.start(ev_loop=self._ev_loop, user_input=self.taker_order_stream, output=self._user_stream)
+            # self.data_source.listen_for_user_stream(self._ev_loop, self._user_stream)
         )
         await asyncio.gather(self._user_stream_tracking_task)

@@ -1,10 +1,10 @@
 import re
+import uuid
 from typing import (
     Optional,
     Tuple, Dict, Any)
 from hummingbot.client.config.config_var import ConfigVar
 from hummingbot.client.config.config_methods import using_exchange
-from hummingbot.core.utils.tracking_nonce import get_tracking_nonce
 
 from hummingbot.core.event.events import (
     TradeType
@@ -72,13 +72,14 @@ def convert_to_exchange_trading_pair(trading_pair: str) -> str:
 
 
 def get_new_client_order_id(trade_type: TradeType, trading_pair: str) -> str:
-    side = ""
-    if trade_type is TradeType.BUY:
-        side = "buy"
-    if trade_type is TradeType.SELL:
-        side = "sell"
-    tracking_nonce = get_tracking_nonce()
-    return f"{BROKER_ID}-{side}-{trading_pair}-{tracking_nonce}"
+    # side = ""
+    # if trade_type is TradeType.BUY:
+    #     side = "buy"
+    # if trade_type is TradeType.SELL:
+    #     side = "sell"
+    # tracking_nonce = get_tracking_nonce()
+    # return f"{BROKER_ID}-{side}-{trading_pair}-{tracking_nonce}"
+    return str(uuid.uuid4())
 
 
 KEYS = {

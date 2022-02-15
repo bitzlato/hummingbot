@@ -27,9 +27,9 @@ cdef class PeatioExchange(ExchangeBase):
     cdef c_did_timeout_tx(self, str tracking_id)
     cdef c_start_tracking_order(self,
                                 str client_order_id,
-                                str exchange_order_id,
+                                # str exchange_order_id,
                                 str trading_pair,
-                                str state,
+                                # str state,
                                 object order_type,
                                 object trade_type,
                                 object price,

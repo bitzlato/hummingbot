@@ -14,12 +14,12 @@ from hummingbot.connector.in_flight_order_base import InFlightOrderBase
 cdef class PeatioInFlightOrder(InFlightOrderBase):
     def __init__(self,
                  client_order_id: str,
-                 exchange_order_id: str,
                  trading_pair: str,
                  order_type: OrderType,
                  trade_type: TradeType,
                  price: Decimal,
                  amount: Decimal,
+                 exchange_order_id: str = None,
                  initial_state: str = "pending"):
         self.trade_ids = set()
         super().__init__(

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from decimal import Decimal
+from asyncio import ensure_future
 
 import aiohttp
 import asyncio
@@ -15,7 +15,6 @@ from typing import (
 from hummingbot.connector.exchange.peatio.peatio_auth import PeatioAuth
 from hummingbot.connector.exchange.peatio.peatio_urls import PEATIO_WS_URL
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
-from hummingbot.core.utils.async_utils import safe_ensure_future
 from hummingbot.logger import HummingbotLogger
 
 
@@ -130,7 +129,7 @@ class PeatioAPIUserStreamDataSource(UserStreamTrackerDataSource):
 class PeatioAPIUserStreamDataSourceNew(UserStreamTrackerDataSource):
     PING_TIMEOUT = 30
     MSG_TIMEOUT = 30
-    SUBSCRIBE_TOPICS = []
+    SUBSCRIBE_TOPICS = ['order']
 
     _hausds_logger: Optional[HummingbotLogger] = None
 
@@ -163,28 +162,27 @@ class PeatioAPIUserStreamDataSourceNew(UserStreamTrackerDataSource):
     async def subscribe_to_topics(self, ws_connection: aiohttp.ClientWebSocketResponse, topics: List[str]):
         subscribe_request = {
             "event": "subscribe",
-            "streams": [
-                topics
-            ]
+            "streams": topics
         }
         await ws_connection.send_json(subscribe_request)
 
     async def _place_order(self, ws_connection: aiohttp.ClientWebSocketResponse,
-                           _uuid: str, market: str, side: str, volume: Decimal, ord_type: str, price: Decimal) -> str:
+                           _uuid: str, market: str, side: str, volume: str, ord_type: str, price: str) -> str:
 
         request = {
             "event": "order",
             "data": {
                 "market": market,
                 "side": side,
-                "volume": str(volume),
+                "volume": volume,
                 "ord_type": ord_type,
-                "price": str(price),
+                "price": price,
                 "uuid": _uuid
             }
         }
 
         await ws_connection.send_json(request)
+        self.logger().warning(f"place order {request}")
 
         return _uuid
 
@@ -212,7 +210,7 @@ class PeatioAPIUserStreamDataSourceNew(UserStreamTrackerDataSource):
                         return
                     yield msg.json()
                 except asyncio.TimeoutError:
-                    pong_waiter = await ws_connection.ping()
+                    pong_waiter = ws_connection.ping()
                     await asyncio.wait_for(pong_waiter, timeout=self.PING_TIMEOUT)
                     self._last_recv_time = time.time()
 
@@ -229,6 +227,7 @@ class PeatioAPIUserStreamDataSourceNew(UserStreamTrackerDataSource):
 
         # Listen to WebSocket Connection
         async for message in self._socket_user_stream(ws):
+            self.logger().warning(f"receive new message {message}")
             output.put_nowait(message)
 
     async def _iter_order_stream_queue(self, queue: asyncio.Queue) -> AsyncIterable[Dict[str, Any]]:
@@ -256,9 +255,9 @@ class PeatioAPIUserStreamDataSourceNew(UserStreamTrackerDataSource):
                 assert isinstance(_uuid, str), "_uuid must be str"
                 assert isinstance(market, str), "market must be str"
                 assert isinstance(side, str), "side must be str"
-                assert isinstance(volume, Decimal), "volume must be Decimal"
+                assert isinstance(volume, str), "volume must be str"
                 assert isinstance(ord_type, str), "ord_type must be str"
-                assert isinstance(price, Decimal), "price must be Decimal"
+                assert isinstance(price, str), "price must be str"
 
                 await self._place_order(ws_connection=ws, _uuid=_uuid, market=market,
                                         side=side, volume=volume, ord_type=ord_type, price=price)
@@ -282,15 +281,11 @@ class PeatioAPIUserStreamDataSourceNew(UserStreamTrackerDataSource):
                 async with (await self.get_ws_connection()) as ws:
                     self._websocket_connection = ws
 
-                    listener_task = safe_ensure_future(self.listener_order_info_task(ws=ws, output=output))
-                    sender_task = safe_ensure_future(self.sender_order_task(ws=ws, _input=user_input))
+                    listener_task = ensure_future(self.listener_order_info_task(ws=ws, output=output), loop=ev_loop)
+                    sender_task = ensure_future(self.sender_order_task(ws=ws, _input=user_input), loop=ev_loop)
 
-                    while not ws.closed:
-                        time.sleep(0.01)
+                    await asyncio.gather(listener_task, sender_task)
 
-                    listener_task.cancel()
-                    sender_task.cancel()
-            #
             except asyncio.CancelledError:
                 raise
             except Exception:
