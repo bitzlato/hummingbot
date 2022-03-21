@@ -696,8 +696,6 @@ cdef class PeatioExchange(ExchangeBase):
                     #     continue
 
                     if channel == PEATIO_ORDER_UPDATE_TOPIC:
-                        self.logger().info(data)
-                        self.logger().info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
                         exchange_order_id = str(data["id"])
 
                         tracked_order = tracked_order = self._in_flight_orders.get(data["uuid"])
