@@ -14,6 +14,10 @@ Copy and paste the commands for your operating system into terminal.
 wget https://raw.githubusercontent.com/bitzlato/hummingbot/bitzlato_stable/installation/install-from-source/install-source-ubuntu.sh
 chmod a+x install-source-ubuntu.sh
 ./install-source-ubuntu.sh
+git checkout bitzlato_stable
+./install-source-ubuntu.sh
+conda activate hummingbot
+python setup.py build_ext --inplace
 ```
 
 ### Debian
@@ -24,6 +28,10 @@ chmod a+x install-source-ubuntu.sh
 wget https://raw.githubusercontent.com/bitzlato/hummingbot/bitzlato_stable/installation/install-from-source/install-source-debian.sh
 chmod a+x install-source-debian.sh
 ./install-source-debian.sh
+git checkout bitzlato_stable
+./install-source-debian.sh
+conda activate hummingbot
+python setup.py build_ext --inplace
 ```
 
 ### CentOS
@@ -34,6 +42,10 @@ chmod a+x install-source-debian.sh
 wget https://raw.githubusercontent.com/bitzlato/hummingbot/bitzlato_stable/installation/install-from-source/install-source-centos.sh
 chmod a+x install-source-centos.sh
 ./install-source-centos.sh
+git checkout bitzlato_stable
+./install-source-centos.sh
+conda activate hummingbot
+python setup.py build_ext --inplace
 ```
 
 ## MacOS Installation
@@ -42,6 +54,10 @@ chmod a+x install-source-centos.sh
 curl https://raw.githubusercontent.com/bitzlato/hummingbot/bitzlato_stable/installation/install-from-source/install-source-macOS.sh -o install-source-macOS.sh
 chmod a+x install-source-macOS.sh
 ./install-source-macOS.sh
+git checkout bitzlato_stable
+./install-source-macOS.sh
+conda activate hummingbot
+python setup.py build_ext --inplace
 ```
 
 ## Windows Installation
