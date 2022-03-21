@@ -1,13 +1,14 @@
 # 1) Clone Hummingbot repo
 git clone https://github.com/bitzlato/hummingbot.git
-git checkout bitzlato_stable
 # 2) Navigate into the hummingbot folder
 cd hummingbot
-# 3) Run install script
+# 3) switch branch 
+git checkout bitzlato_stable
+# 4) Run install script
 ./install
-# 4) Activate environment
+# 5) Activate environment
 conda activate hummingbot
-# 5) Compile
+# 6) Compile
 ./compile
-# 6) Run Hummingbot
+# 7) Run Hummingbot
 bin/hummingbot.py
