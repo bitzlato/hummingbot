@@ -1,5 +1,6 @@
 # 1) Clone Hummingbot repo
 git clone https://github.com/bitzlato/hummingbot.git
+git checkout bitzlato_dev
 # 2) Navigate into the hummingbot folder
 cd hummingbot
 # 3) Run install script
