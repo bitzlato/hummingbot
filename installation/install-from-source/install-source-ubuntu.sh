@@ -10,6 +10,7 @@ export PYTHON="$(pwd)/miniconda3/envs/hummingbot/bin/python3"
 # INSTALL HUMMINGBOT
 # 3) Clone Hummingbot
 git clone https://github.com/bitzlato/hummingbot.git
+git checkout bitzlato_dev
 # 4) Install Hummingbot
 export hummingbotPath="$(pwd)/hummingbot" && cd $hummingbotPath && ./install
 # 5) Activate environment and compile code
