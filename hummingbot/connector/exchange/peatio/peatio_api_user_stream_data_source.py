@@ -51,22 +51,10 @@ class PeatioAPIUserStreamDataSource(UserStreamTrackerDataSource):
     def last_recv_time(self) -> float:
         return self._last_recv_time
 
-    async def _authenticate_client(self):
-        """
-        Sends an Authentication request to Peatio's WebSocket API Server
-        """
-        auth_request = self._auth.add_auth_data()
-
-        await self._websocket_connection.send_json(auth_request)
-        resp: aiohttp.WSMessage = await self._websocket_connection.receive()
-        msg = resp.json()
-        if msg.get("success", {}).get("message") == "Authenticated.":
-            self.logger().info("Successfully authenticated")
-
     async def _subscribe_topic(self, topic: str):
         subscribe_request: Dict[str, Any] = {
+            "event": "subscribe",
             "streams": [topic],
-            "event": "subscribe"
         }
         await self._websocket_connection.send_json(subscribe_request)
         self._last_recv_time = time.time()
@@ -75,7 +63,7 @@ class PeatioAPIUserStreamDataSource(UserStreamTrackerDataSource):
         if self._client_session is None:
             self._client_session = aiohttp.ClientSession()
 
-        stream_url: str = f"{PEATIO_WS_URL}"
+        stream_url: str = f"{PEATIO_WS_URL}" + "?cancel_on_close=1"
         return self._client_session.ws_connect(stream_url, headers=self._auth.add_auth_data())
 
     async def _socket_user_stream(self) -> AsyncIterable[str]:
@@ -91,11 +79,9 @@ class PeatioAPIUserStreamDataSource(UserStreamTrackerDataSource):
                     # since all ws messages from Peatio are TEXT, any other type should cause ws to reconnect
                     return
 
-                message = raw_msg.json()
-
-                yield message
-            except asyncio.TimeoutError:
-                self.logger().error("Userstream websocket timeout, going to reconnect...")
+                yield raw_msg.json()
+            except asyncio.TimeoutError as e:
+                self.logger().error("Userstream websocket timeout, going to reconnect...", exc_info=e)
                 return
 
     async def listen_for_user_stream(self, ev_loop: asyncio.BaseEventLoop, output: asyncio.Queue):

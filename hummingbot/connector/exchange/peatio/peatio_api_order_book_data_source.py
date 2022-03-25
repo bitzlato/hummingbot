@@ -241,13 +241,11 @@ class PeatioAPIOrderBookDataSource(OrderBookTrackerDataSource):
                                 sequence = msg[stream_name]["sequence"]
                                 is_snapshot = stream_name.endswith(".ob-snap")
 
-                                if sequence == 1 and is_snapshot is True:
+                                if is_snapshot is True:
                                     try:
                                         self.STATES[trading_pair] = {}
                                     except KeyError:
                                         pass
-                                    next_sequence = sequence
-                                elif is_snapshot is True and self.STATES.get(trading_pair, {}).get("ts", 0) < msg[stream_name]['ts']:
                                     next_sequence = sequence
                                 else:
                                     next_sequence = self.STATES.get(trading_pair, {}).get("last_sequence", 0) + 1

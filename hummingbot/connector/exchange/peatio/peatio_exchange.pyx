@@ -681,19 +681,6 @@ cdef class PeatioExchange(ExchangeBase):
                     if channel not in PEATIO_SUBSCRIBE_TOPICS:
                         continue
                     data = stream_message[channel]
-                    # if len(data) == 0 and stream_message["code"] == 200:
-                    #     # This is a subcribtion confirmation.
-                    #     self.logger().info(f"Successfully subscribed to {channel}")
-                    #     continue
-
-                    # if channel == PEATIO_ACCOUNT_UPDATE_TOPIC:
-                    #     asset_name = data["currency"].upper()
-                    #     balance = data["balance"]
-                    #     available_balance = data["available"]
-                    #
-                    #     self._account_balances.update({asset_name: Decimal(balance)})
-                    #     self._account_available_balances.update({asset_name: Decimal(available_balance)})
-                    #     continue
 
                     if channel == PEATIO_ORDER_UPDATE_TOPIC:
                         self.logger().info(data)
