@@ -1,0 +1,42 @@
+########################################################
+###       Stones strategy config                     ###
+########################################################
+
+template_version: 2
+strategy: stones
+
+# The following configuations are only required for the
+# simple trade strategy
+
+# Exchange and token parameters
+market: "peatio"
+market_trading_pair_tuple:
+  - "BTC-USDT"
+
+# How long to wait before placing the order (in seconds)
+time_delay: 120
+
+total_buy_order_amount:
+  BTC-USDT: 1.2
+total_sell_order_amount:
+  BTC-USDT: 1.2
+
+# Rules for the buy order levels
+buy_order_levels:
+  BTC-USDT:
+    '0':
+      min_percentage_price_change: 15
+      max_percentage_price_change: 20
+      min_order_amount: 0.6
+      max_order_amount: 0.6
+      percentage_of_liquidity: 100
+
+# Rules for the sell order levels
+sell_order_levels:
+  BTC-USDT:
+    '0':
+      min_percentage_price_change: 15
+      max_percentage_price_change: 20
+      min_order_amount: 0.6
+      max_order_amount: 0.6
+      percentage_of_liquidity: 100
