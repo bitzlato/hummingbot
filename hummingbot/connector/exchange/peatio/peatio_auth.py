@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import hashlib
 import hmac
 from typing import (
@@ -17,7 +17,7 @@ class PeatioAuth:
 
     def add_auth_data(self, headers: Dict[str, Any] = None) -> Dict[str, Any]:
         global LAST_TIMESTAMP
-        timestamp = int(str(datetime.now().timestamp() * 1000).split('.')[0])
+        timestamp = int(str(datetime.now(timezone.utc).timestamp() * 1000).split('.')[0])
         if LAST_TIMESTAMP is not None and LAST_TIMESTAMP >= timestamp:
             timestamp = LAST_TIMESTAMP + 1
         LAST_TIMESTAMP = timestamp

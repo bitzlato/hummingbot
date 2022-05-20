@@ -388,6 +388,24 @@ cdef class StonesStrategy(StrategyBase):
             self.logger().info(f"cancel {'buy' if order.is_buy else 'ask'} LIMIT order with {order.client_order_id} ID")
             self.c_cancel_order(market_info, order.client_order_id)
 
+        # orders_for_cancel = self.find_orders_that_need_closed(market_info=market_info)
+        #
+        # is_buy_count = 0
+        # is_sell_count = 0
+        #
+        # for order in orders_for_cancel:
+        #     if order.is_buy:
+        #         if is_buy_count > 1:
+        #             continue
+        #         is_buy_count += 1
+        #     else:
+        #         if is_sell_count > 1:
+        #             continue
+        #         is_sell_count += 1
+        #
+        #     self.logger().info(f"cancel {'buy' if order.is_buy else 'ask'} LIMIT order with {order.client_order_id} ID")
+        #     self.c_cancel_order(market_info, order.client_order_id)
+
         oracle_price = self.get_oracle_price(maker_market=maker_market, trading_pair=trading_pair)
 
         buy_orders_data = self.get_data_for_orders(market_info=market_info, current_price=oracle_price, liquidity=self._total_buy_order_amount[trading_pair], is_buy=True)
