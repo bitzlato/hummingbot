@@ -19,6 +19,8 @@ from hummingbot.connector.exchange.kucoin.kucoin_utils import convert_from_excha
     kucoin_convert_from_exchange_pair
 from hummingbot.connector.exchange.ascend_ex.ascend_ex_utils import convert_from_exchange_trading_pair as \
     ascend_ex_convert_from_exchange_pair
+from hummingbot.connector.exchange.huobi.huobi_utils import convert_from_exchange_trading_pair as \
+    huobi_convert_from_exchange_pair
 from hummingbot.core.rate_oracle.utils import find_rate
 from hummingbot.core.utils.async_utils import safe_gather
 from hummingbot.core.utils import async_ttl_cache
@@ -34,6 +36,7 @@ class RateOracleSource(Enum):
     ascend_ex = 3
     price_monolithos = 4
     whitebit = 5
+    huobi = 6
 
 
 class RateOracle(NetworkBase):
@@ -53,6 +56,7 @@ class RateOracle(NetworkBase):
     _cgecko_supported_vs_tokens: List[str] = []
 
     whitebit_price_url = "https://whitebit.com/api/v1/public/tickers"
+    huobi_price_url = "https://api.huobi.pro/market/tickers"
     price_monolithos_url = "https://price.monolithos.pro/v1/setzer/price/list"
     binance_price_url = "https://api.binance.com/api/v3/ticker/bookTicker"
     binance_us_price_url = "https://api.binance.us/api/v3/ticker/bookTicker"
@@ -189,6 +193,8 @@ class RateOracle(NetworkBase):
             return await cls.get_monolithos_prices()
         elif cls.source == RateOracleSource.whitebit:
             return await cls.get_whitebit_prices()
+        elif cls.source == RateOracleSource.huobi:
+            return await cls.get_huobi_prices()
         else:
             raise NotImplementedError
 
@@ -267,6 +273,39 @@ class RateOracle(NetworkBase):
                     cls.logger().error("Price expired")
                     raise ValueError("Price expired")
                 results[trading_pair] = (Decimal(record['ticker']['bid']) + Decimal(record['ticker']['ask'])) / Decimal('2')
+                if "RUB" in trading_pair:
+                    pair_in_mcr = trading_pair.replace("RUB", "MCR")
+                    results[pair_in_mcr] = results[trading_pair]
+        return results
+
+    @classmethod
+    @async_ttl_cache(ttl=1, maxsize=1)
+    async def get_huobi_prices(cls) -> Dict[str, Decimal]:
+        """
+        Fetches Huobi prices from api.huobi.pro/. Prices are added
+        to the prices dictionary.
+        :return A dictionary of trading pairs and prices
+        """
+        results = {}
+        client = await cls._http_client()
+        async with client.request("GET", cls.huobi_price_url) as resp:
+            records = await resp.json()
+            if "data" not in records:
+                cls.logger().error("Response not exist result")
+                raise ValueError("response not exist result")
+            if "error" in records and records["error"] is not None:
+                cls.logger().error("Unexpected error while retrieving rates from Monolithos. "
+                                   "Check the log file for more info.")
+                raise ValueError("response not exist result")
+            if datetime.datetime.now(datetime.timezone.utc) - datetime.datetime.fromtimestamp(int(records["ts"] / 1000), tz=datetime.timezone.utc) > datetime.timedelta(hours=2):
+                cls.logger().error("Price expired")
+                raise ValueError("Price expired")
+
+            for record in records["data"]:
+                trading_pair = huobi_convert_from_exchange_pair(record["symbol"])
+                if trading_pair is None:
+                    continue
+                results[trading_pair] = (Decimal(record['bid']) + Decimal(record['ask'])) / Decimal('2')
                 if "RUB" in trading_pair:
                     pair_in_mcr = trading_pair.replace("RUB", "MCR")
                     results[pair_in_mcr] = results[trading_pair]

@@ -60,8 +60,8 @@ from unittest import mock
 API_MOCK_ENABLED = conf.mock_api_enabled is not None and conf.mock_api_enabled.lower() in ['true', 'yes', '1']
 ACCESS_KEY = "XXX" if API_MOCK_ENABLED else conf.peatio_access_key
 API_SECRET = "YYY" if API_MOCK_ENABLED else conf.peatio_secret_key
-API_BASE_URL = "market.bitzlato.com"
-API_HOST = "market.bitzlato.com"
+API_BASE_URL = "bitzlato.com"
+API_HOST = "bitzlato.com"
 EXCHANGE_ORDER_ID = 20001
 logging.basicConfig(level=METRICS_LOG_LEVEL)
 

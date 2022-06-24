@@ -298,7 +298,10 @@ cdef class PeatioExchange(ExchangeBase):
             if response.status in [422, ]:
                 raise PeatioAPIError(await response.json())
             raw_text = await response.text()
-            raise IOError(f"Error fetching data from {url}. HTTP status is {response.status} with response {raw_text}. Nonce={headers.get('X-Auth-Nonce')}")
+            status = response.status
+            self.logger().error(f"Error fetching data from {url}. HTTP status is {status} with response {raw_text}. Nonce={headers.get('X-Auth-Nonce')}",
+                                extra={"nonce": headers.get('X-Auth-Nonce'), "url": url, "status": response.status, "msg_text": raw_text, })
+            raise IOError(f"Error fetching data from {url}. HTTP status is {status} with response {raw_text}. Nonce={headers.get('X-Auth-Nonce')}")
 
         try:
             data = await response.json()
