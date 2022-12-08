@@ -620,7 +620,7 @@ class BitzlatoExchange(ExchangeBase):
         remote_asset_names = set()
         account_info = await self._api_request("GET", Constants.ENDPOINT["USER_BALANCES"], is_auth_required=True)
         for account in account_info:
-            asset_name = account["currency"].upper()
+            asset_name = account["currency"].replace("-", "").upper()
             self._account_available_balances[asset_name] = Decimal(str(account["balance"]))
             self._account_balances[asset_name] = Decimal(str(account["locked"])) + Decimal(str(account["balance"]))
             remote_asset_names.add(asset_name)
@@ -799,7 +799,7 @@ class BitzlatoExchange(ExchangeBase):
         await self._trigger_order_fill(tracked_order, trade_msg)
 
     def _process_balance_message(self, balance_message: Dict[str, Any]):
-        asset_name = balance_message["currency"].upper()
+        asset_name = balance_message["currency"].replace("-", "").upper()
         self._account_available_balances[asset_name] = Decimal(str(balance_message["balance"]))
         self._account_balances[asset_name] = Decimal(str(balance_message["locked"])) + Decimal(
             str(balance_message["balance"]))

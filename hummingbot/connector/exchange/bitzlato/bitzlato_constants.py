@@ -5,9 +5,9 @@ from hummingbot.core.api_throttler.data_types import LinkedLimitWeightPair, Rate
 class Constants:
     EXCHANGE_NAME = "bitzlato"
 
-    REST_URL = "https://bitzlato.bz/api/v2/peatio"
-    WS_PRIVATE_URL = "wss://bitzlato.bz/api/v2/ranger/private"
-    WS_PUBLIC_URL = "wss://bitzlato.bz/api/v2/ranger/public"
+    REST_URL = "https://bitzlato.net/api/v2/peatio"
+    WS_PRIVATE_URL = "wss://bitzlato.net/api/v2/ranger/private"
+    WS_PUBLIC_URL = "wss://bitzlato.net/api/v2/ranger/public"
 
     HBOT_BROKER_ID = "HBOT"
 
